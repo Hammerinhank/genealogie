@@ -140,6 +140,44 @@
   .aide-format{font-size:.76rem;color:var(--sepia-att);margin-top:.6rem;line-height:1.5;}
   .aide-format code{background:var(--parchemin-ombre);padding:.05rem .3rem;border-radius:4px;}
   .actions-modale{display:flex;gap:.5rem;margin-top:.7rem;flex-wrap:wrap;}
+
+  .grp-vert{display:flex;flex-direction:column;gap:.6rem;margin:.6rem 0;}
+  .grp-vert label{font-size:.74rem;color:var(--sepia-att);display:flex;flex-direction:column;gap:.25rem;}
+  .champ-clair{
+    font-family:inherit;font-size:.82rem;background:#fffdf7;color:var(--sepia);
+    border:1px solid var(--parchemin-ombre);border-radius:8px;padding:.42rem .6rem;width:100%;
+  }
+
+  /* ---- Arborescence éditable (page plein écran) ---- */
+  .overlay.plein{align-items:stretch;justify-content:stretch;padding:0;}
+  .page-arbre{background:var(--parchemin);color:var(--sepia);width:100%;height:100%;display:flex;flex-direction:column;}
+  .entete-arbre{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;border-bottom:1px solid var(--parchemin-ombre);
+    flex-wrap:wrap;background:var(--parchemin);}
+  .entete-arbre h2{margin:0;font-family:'Fraunces',serif;font-size:1.02rem;flex:0 0 auto;}
+  .banniere-non-enregistre{flex:1 1 220px;font-size:.76rem;color:#7a4a1c;background:#fbe7c6;border:1px solid #e3c88a;
+    border-radius:8px;padding:.35rem .6rem;}
+  .corps-arbre{flex:1 1 auto;overflow:auto;padding:.5rem .3rem 6rem;-webkit-overflow-scrolling:touch;}
+
+  .ligne-arbre{display:flex;align-items:center;gap:.3rem;padding:.3rem .3rem;border-radius:6px;position:relative;}
+  .ligne-arbre.racine{background:var(--parchemin-ombre);}
+  .ligne-arbre .poignee{cursor:grab;color:var(--sepia-att);touch-action:none;padding:.1rem .3rem;
+    user-select:none;flex:0 0 auto;font-size:1rem;}
+  .ligne-arbre input.nom{flex:1 1 auto;min-width:4.5rem;border:1px solid transparent;background:transparent;
+    font-size:.85rem;color:var(--sepia);padding:.2rem .3rem;border-radius:4px;font-family:inherit;}
+  .ligne-arbre.racine input.nom{font-weight:600;}
+  .ligne-arbre input.date{width:4.2rem;flex:0 0 auto;border:1px solid transparent;background:transparent;
+    font-size:.7rem;color:var(--sepia-att);padding:.2rem .2rem;border-radius:4px;font-family:'JetBrains Mono',monospace;}
+  .ligne-arbre input:focus{border-color:var(--laiton);background:#fffdf7;outline:none;}
+  .ligne-arbre .action{background:none;border:none;color:var(--sepia-att);cursor:pointer;font-size:.95rem;
+    padding:.15rem .3rem;flex:0 0 auto;}
+  .ligne-arbre .action.supprimer{color:var(--danger);}
+  .ligne-arbre.glissee{opacity:.35;}
+  .ligne-arbre.cible-avant{box-shadow:inset 0 3px 0 var(--laiton);}
+  .ligne-arbre.cible-apres{box-shadow:inset 0 -3px 0 var(--laiton);}
+  .ligne-arbre.cible-enfant{background:var(--laiton-clair);}
+  .fantome-drag{position:fixed;z-index:200;pointer-events:none;background:var(--parchemin);border:1px solid var(--laiton);
+    border-radius:6px;padding:.3rem .6rem;font-size:.8rem;color:var(--sepia);box-shadow:0 6px 18px rgba(0,0,0,.35);
+    max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 </style>
 </head>
 <body>
@@ -150,7 +188,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V1</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V2</button>
   </header>
 
   <div class="barre-outils">
@@ -159,6 +197,8 @@
     <input type="file" id="fichier-import" accept="application/json,.json" style="display:none">
     <button class="btn" id="btn-exporter">Exporter JSON</button>
     <button class="btn" id="btn-editer">Éditer les données</button>
+    <button class="btn" id="btn-github">GitHub</button>
+    <button class="btn accent" id="btn-arborescence">Arborescence</button>
     <div class="grp">
       <label for="sel-profondeur">Jusqu'à</label>
       <select class="champ" id="sel-profondeur"></select>
@@ -253,13 +293,76 @@
   </div>
 </div>
 
+<!-- Modale : confirmation générique -->
+<div class="overlay" id="overlay-confirm">
+  <div class="carte-modale" style="max-width:380px;">
+    <h2 id="confirm-titre">Confirmer</h2>
+    <div id="confirm-corps"></div>
+    <div class="actions-modale">
+      <button class="btn danger" id="btn-confirm-oui">Confirmer</button>
+      <button class="btn" id="btn-confirm-non">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : synchronisation GitHub -->
+<div class="overlay" id="overlay-github">
+  <div class="carte-modale">
+    <button class="fermer" id="fermer-github">✕</button>
+    <h2>Synchronisation GitHub</h2>
+    <div class="grp-vert">
+      <label>Propriétaire du dépôt
+        <input class="champ-clair" id="gh-proprietaire" placeholder="Hammerinhank">
+      </label>
+      <label>Nom du dépôt
+        <input class="champ-clair" id="gh-depot" placeholder="genealogie">
+      </label>
+      <label>Fichier
+        <input class="champ-clair" id="gh-fichier" placeholder="genealogie.json">
+      </label>
+      <label>Jeton d'accès personnel (PAT)
+        <input class="champ-clair" id="gh-jeton" type="password" placeholder="ghp_…">
+      </label>
+    </div>
+    <div class="actions-modale">
+      <button class="btn accent" id="btn-gh-enregistrer-identifiants">Enregistrer les identifiants</button>
+      <button class="btn danger" id="btn-gh-oublier">Oublier le jeton</button>
+    </div>
+    <div class="actions-modale">
+      <button class="btn" id="btn-gh-charger">Charger depuis GitHub</button>
+      <button class="btn" id="btn-gh-sauver">Enregistrer sur GitHub</button>
+    </div>
+    <div id="gh-statut" class="aide-format"></div>
+    <div class="aide-format">
+      Le jeton reste uniquement dans le stockage local de ce navigateur (jamais envoyé ailleurs qu'à l'API
+      GitHub). Il doit avoir la portée <code>repo</code>. Si le dépôt indiqué n'existe pas encore, l'app tente
+      de le créer automatiquement — cela ne fonctionne que si « Propriétaire » est ton propre compte GitHub.
+    </div>
+  </div>
+</div>
+
+<!-- Page plein écran : arborescence éditable -->
+<div class="overlay plein" id="overlay-arbre">
+  <div class="page-arbre">
+    <div class="entete-arbre">
+      <h2>Arborescence éditable</h2>
+      <div class="banniere-non-enregistre" id="banniere-arbre" style="display:none;">
+        ⚠ Modifications non enregistrées — seront enregistrées à la fermeture de cette page
+      </div>
+      <button class="btn accent" id="btn-fermer-arbre">Fermer et enregistrer</button>
+    </div>
+    <div class="corps-arbre" id="corps-arbre"></div>
+  </div>
+</div>
+
 <script>
 (function(){
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V1";
+const VERSION = "V2";
 const HISTORIQUE_VERSIONS = [
+  { version:"V2", date:"21/08/2026", notes:"Ajout de la synchronisation GitHub d'un fichier genealogie.json (propriétaire modifiable, par défaut Hammerinhank ; dépôt par défaut genealogie ; jeton PAT en localStorage ; création automatique du dépôt s'il n'existe pas ; chargement et enregistrement manuels). Ajout d'une arborescence généalogique éditable en plein écran : réorganisation par glisser-déposer d'une feuille ou d'une branche entière (souris et tactile, poignée dédiée), suppression avec confirmation intégrée, création de nouvelles personnes, édition directe du nom et des dates. Bandeau « non enregistré » tant que l'arborescence reste ouverte ; à la fermeture, enregistrement automatique sur GitHub si un jeton est configuré (sinon rappel d'exporter le JSON) ; avertissement navigateur si on quitte la page avec des modifications en attente. Correction : les champs internes de mise en page (angles, profondeur…) ne sont plus inclus dans les fichiers exportés ou envoyés à GitHub." },
   { version:"V1", date:"20/08/2026", notes:"Version initiale : rendu en éventail (arc de cercle, générations concentriques), largeur de branche proportionnelle au nombre de descendants, couleurs par branche, étiquettes radiales avec bascule de lisibilité, panneau de détail au clic, recherche de nom, zoom/déplacement souris + tactile (molette, glisser, pincement), limitation de profondeur affichée, réglage de l'épaisseur des anneaux, import/export/édition JSON, données d'exemple." }
 ];
 
@@ -703,7 +806,7 @@ document.getElementById('fichier-import').addEventListener('change', (e)=>{
 
 /* export */
 document.getElementById('btn-exporter').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify(donnees, null, 2)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify(nettoyerPourExport(donnees), null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = 'genealogie.json'; a.click();
@@ -713,7 +816,7 @@ document.getElementById('btn-exporter').addEventListener('click', ()=>{
 /* édition JSON */
 const overlayEditer = document.getElementById('overlay-editer');
 document.getElementById('btn-editer').addEventListener('click', ()=>{
-  document.getElementById('zone-json').value = JSON.stringify(donnees, null, 2);
+  document.getElementById('zone-json').value = JSON.stringify(nettoyerPourExport(donnees), null, 2);
   document.getElementById('erreur-json').textContent = '';
   overlayEditer.classList.add('visible');
 });
@@ -727,6 +830,369 @@ document.getElementById('btn-appliquer-json').addEventListener('click', ()=>{
     overlayEditer.classList.remove('visible');
   }catch(err){
     document.getElementById('erreur-json').textContent = 'Erreur : '+err.message;
+  }
+});
+
+/* ===================== Nettoyage avant export/enregistrement ===================== */
+function nettoyerPourExport(obj){
+  function nettoyerNoeud(n){
+    const c = {};
+    for(const k in n){ if(k.charAt(0)!=='_') c[k]=n[k]; }
+    if(c.conjoint){
+      const cc = {};
+      for(const k in c.conjoint){ if(k.charAt(0)!=='_') cc[k]=c.conjoint[k]; }
+      c.conjoint = cc;
+    }
+    if(c.enfants) c.enfants = c.enfants.map(nettoyerNoeud);
+    return c;
+  }
+  return { titre:obj.titre, edition:obj.edition, racine: nettoyerNoeud(obj.racine) };
+}
+
+/* ===================== Modale de confirmation générique ===================== */
+const overlayConfirm = document.getElementById('overlay-confirm');
+let resoudreConfirmation = null;
+function demanderConfirmation(titre, html){
+  document.getElementById('confirm-titre').textContent = titre;
+  document.getElementById('confirm-corps').innerHTML = html;
+  overlayConfirm.classList.add('visible');
+  return new Promise(res=>{ resoudreConfirmation = res; });
+}
+document.getElementById('btn-confirm-oui').addEventListener('click', ()=>{
+  overlayConfirm.classList.remove('visible');
+  if(resoudreConfirmation) resoudreConfirmation(true);
+});
+document.getElementById('btn-confirm-non').addEventListener('click', ()=>{
+  overlayConfirm.classList.remove('visible');
+  if(resoudreConfirmation) resoudreConfirmation(false);
+});
+overlayConfirm.addEventListener('click', (e)=>{ if(e.target===overlayConfirm) document.getElementById('btn-confirm-non').click(); });
+
+/* ===================== Synchronisation GitHub ===================== */
+const CLE_GITHUB = 'eventail_genealogie_github';
+function chargerConfigGithub(){
+  const defaut = {proprietaire:'Hammerinhank', depot:'genealogie', fichier:'genealogie.json', jeton:''};
+  try{
+    const brut = localStorage.getItem(CLE_GITHUB);
+    if(!brut) return defaut;
+    const c = JSON.parse(brut);
+    return {
+      proprietaire: c.proprietaire || defaut.proprietaire,
+      depot: c.depot || defaut.depot,
+      fichier: c.fichier || defaut.fichier,
+      jeton: c.jeton || ''
+    };
+  }catch(e){ return defaut; }
+}
+function enregistrerConfigGithub(c){ localStorage.setItem(CLE_GITHUB, JSON.stringify(c)); }
+function lireEtEnregistrerChampsGithub(){
+  const c = {
+    proprietaire: document.getElementById('gh-proprietaire').value.trim() || 'Hammerinhank',
+    depot: document.getElementById('gh-depot').value.trim() || 'genealogie',
+    fichier: document.getElementById('gh-fichier').value.trim() || 'genealogie.json',
+    jeton: document.getElementById('gh-jeton').value.trim()
+  };
+  enregistrerConfigGithub(c);
+  return c;
+}
+function b64EncodeUnicode(str){ return btoa(String.fromCharCode(...new TextEncoder().encode(str))); }
+function b64DecodeUnicode(str){ return new TextDecoder().decode(Uint8Array.from(atob(str), c=>c.charCodeAt(0))); }
+
+async function apiGithub(chemin, options){
+  const c = chargerConfigGithub();
+  if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
+  const entetes = Object.assign({
+    'Authorization':'Bearer '+c.jeton,
+    'Accept':'application/vnd.github+json'
+  }, (options&&options.headers)||{});
+  return fetch('https://api.github.com'+chemin, Object.assign({}, options||{}, {headers:entetes}));
+}
+
+async function chargerDepuisGithub(){
+  const c = chargerConfigGithub();
+  if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
+  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(c.fichier)}`);
+  if(rep.status===404) throw new Error(`fichier ${c.fichier} introuvable dans ${c.proprietaire}/${c.depot}`);
+  if(!rep.ok) throw new Error('erreur GitHub ('+rep.status+')');
+  const data = await rep.json();
+  const contenu = b64DecodeUnicode((data.content||'').replace(/\n/g,''));
+  const obj = JSON.parse(contenu);
+  if(!obj.racine) throw new Error('JSON invalide (champ "racine" manquant)');
+  return obj;
+}
+
+async function enregistrerSurGithub(){
+  const c = chargerConfigGithub();
+  if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
+
+  const repDepot = await apiGithub(`/repos/${c.proprietaire}/${c.depot}`);
+  if(repDepot.status===404){
+    const repCreation = await apiGithub('/user/repos', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:c.depot, description:'Données généalogiques (éventail)', private:false, auto_init:true})
+    });
+    if(!repCreation.ok) throw new Error(`impossible de créer le dépôt ${c.depot} (${repCreation.status}) — vérifie que « Propriétaire » est ton propre compte`);
+    await new Promise(r=>setTimeout(r, 900));
+  } else if(!repDepot.ok){
+    throw new Error('impossible d\'accéder au dépôt ('+repDepot.status+')');
+  }
+
+  const contenuB64 = b64EncodeUnicode(JSON.stringify(nettoyerPourExport(donnees), null, 2));
+  let sha;
+  const repExistant = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(c.fichier)}`);
+  if(repExistant.ok){ sha = (await repExistant.json()).sha; }
+
+  const corps = { message:'Mise à jour de la généalogie ('+new Date().toLocaleString('fr-FR')+')', content:contenuB64 };
+  if(sha) corps.sha = sha;
+  const repEcriture = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(c.fichier)}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
+  });
+  if(!repEcriture.ok){
+    let detail = '';
+    try{ detail = (await repEcriture.json()).message || ''; }catch(e){}
+    throw new Error('échec de l\'écriture ('+repEcriture.status+') '+detail);
+  }
+}
+
+const overlayGithub = document.getElementById('overlay-github');
+document.getElementById('btn-github').addEventListener('click', ()=>{
+  const c = chargerConfigGithub();
+  document.getElementById('gh-proprietaire').value = c.proprietaire;
+  document.getElementById('gh-depot').value = c.depot;
+  document.getElementById('gh-fichier').value = c.fichier;
+  document.getElementById('gh-jeton').value = c.jeton;
+  document.getElementById('gh-statut').textContent = '';
+  overlayGithub.classList.add('visible');
+});
+document.getElementById('fermer-github').addEventListener('click', ()=>overlayGithub.classList.remove('visible'));
+document.getElementById('btn-gh-enregistrer-identifiants').addEventListener('click', ()=>{
+  lireEtEnregistrerChampsGithub();
+  document.getElementById('gh-statut').textContent = 'Identifiants enregistrés sur cet appareil.';
+});
+document.getElementById('btn-gh-oublier').addEventListener('click', async ()=>{
+  const ok = await demanderConfirmation('Oublier le jeton', 'Retirer le jeton GitHub enregistré sur ce navigateur ?');
+  if(!ok) return;
+  const c = chargerConfigGithub(); c.jeton=''; enregistrerConfigGithub(c);
+  document.getElementById('gh-jeton').value = '';
+  document.getElementById('gh-statut').textContent = 'Jeton oublié.';
+});
+document.getElementById('btn-gh-charger').addEventListener('click', async ()=>{
+  lireEtEnregistrerChampsGithub();
+  document.getElementById('gh-statut').textContent = 'Chargement…';
+  try{
+    const obj = await chargerDepuisGithub();
+    chargerDonnees(obj, true);
+    document.getElementById('gh-statut').textContent = 'Chargé depuis GitHub.';
+  }catch(err){ document.getElementById('gh-statut').textContent = 'Erreur : '+err.message; }
+});
+document.getElementById('btn-gh-sauver').addEventListener('click', async ()=>{
+  lireEtEnregistrerChampsGithub();
+  document.getElementById('gh-statut').textContent = 'Envoi…';
+  try{
+    await enregistrerSurGithub();
+    document.getElementById('gh-statut').textContent = 'Enregistré sur GitHub.';
+  }catch(err){ document.getElementById('gh-statut').textContent = 'Erreur : '+err.message; }
+});
+
+/* ===================== Arborescence éditable ===================== */
+let arbreModifie = false;
+let listeLignesArbre = [];
+let glisseArbre = null;
+
+function construireListeArbre(){
+  listeLignesArbre = [];
+  (function parcourir(n, parentArr, profondeur){
+    listeLignesArbre.push({noeud:n, parentArr, profondeur, elt:null});
+    if(n.enfants) n.enfants.forEach(e=>parcourir(e, n.enfants, profondeur+1));
+  })(donnees.racine, null, 0);
+}
+function estDescendantOuSoi(depart, cible){
+  if(depart===cible) return true;
+  if(!depart.enfants) return false;
+  return depart.enfants.some(e=>estDescendantOuSoi(e, cible));
+}
+function marquerModifieArbre(){ arbreModifie = true; majBanniereArbre(); }
+function majBanniereArbre(){
+  document.getElementById('banniere-arbre').style.display = arbreModifie ? 'block' : 'none';
+}
+
+function redessinerArbre(){
+  construireListeArbre();
+  const conteneur = document.getElementById('corps-arbre');
+  conteneur.innerHTML = '';
+  listeLignesArbre.forEach(entree=>conteneur.appendChild(construireLigneArbre(entree)));
+}
+
+function construireLigneArbre(entree){
+  const n = entree.noeud, estRacine = (entree.parentArr===null);
+  const ligne = document.createElement('div');
+  ligne.className = 'ligne-arbre'+(estRacine?' racine':'');
+  ligne.style.paddingLeft = (entree.profondeur*20 + 4)+'px';
+  entree.elt = ligne;
+
+  if(!estRacine){
+    const poignee = document.createElement('span');
+    poignee.className = 'poignee'; poignee.textContent = '⠿'; poignee.title = 'Glisser pour déplacer';
+    poignee.addEventListener('pointerdown', (e)=>demarrerGlisser(e, entree));
+    ligne.appendChild(poignee);
+  }else{
+    const esp = document.createElement('span'); esp.style.cssText = 'width:1.2rem;flex:0 0 auto;';
+    ligne.appendChild(esp);
+  }
+
+  const champNom = document.createElement('input');
+  champNom.className = 'nom'; champNom.value = n.nom||''; champNom.placeholder = 'Nom';
+  champNom.addEventListener('input', ()=>{ n.nom = champNom.value; marquerModifieArbre(); });
+  ligne.appendChild(champNom);
+
+  const champNaiss = document.createElement('input');
+  champNaiss.className = 'date'; champNaiss.value = n.naissance||''; champNaiss.placeholder = 'naissance';
+  champNaiss.addEventListener('input', ()=>{ n.naissance = champNaiss.value; marquerModifieArbre(); });
+  ligne.appendChild(champNaiss);
+
+  const champDeces = document.createElement('input');
+  champDeces.className = 'date'; champDeces.value = n.deces||''; champDeces.placeholder = 'décès';
+  champDeces.addEventListener('input', ()=>{ n.deces = champDeces.value; marquerModifieArbre(); });
+  ligne.appendChild(champDeces);
+
+  const btnAjouter = document.createElement('button');
+  btnAjouter.className = 'action'; btnAjouter.textContent = '➕'; btnAjouter.title = 'Ajouter un enfant';
+  btnAjouter.addEventListener('click', ()=>{
+    if(!n.enfants) n.enfants = [];
+    n.enfants.push({nom:'Nouvelle personne', naissance:'', enfants:[]});
+    marquerModifieArbre();
+    redessinerArbre();
+  });
+  ligne.appendChild(btnAjouter);
+
+  if(!estRacine){
+    const btnSupprimer = document.createElement('button');
+    btnSupprimer.className = 'action supprimer'; btnSupprimer.textContent = '🗑'; btnSupprimer.title = 'Supprimer';
+    btnSupprimer.addEventListener('click', async ()=>{
+      const nbDesc = (n.enfants && n.enfants.length) ? poidsNoeud(n) : 0;
+      const msg = nbDesc>0
+        ? `Supprimer « ${n.nom||'—'} » supprimera aussi ses ${nbDesc} descendant(s) rattaché(s). Continuer ?`
+        : `Supprimer « ${n.nom||'—'} » ?`;
+      const ok = await demanderConfirmation('Supprimer cette personne', msg);
+      if(!ok) return;
+      const i = entree.parentArr.indexOf(n);
+      if(i>=0) entree.parentArr.splice(i,1);
+      marquerModifieArbre();
+      redessinerArbre();
+    });
+    ligne.appendChild(btnSupprimer);
+  }
+  return ligne;
+}
+
+function positionnerFantome(f, x, y){ f.style.left=(x+14)+'px'; f.style.top=(y+14)+'px'; }
+function demarrerGlisser(evDown, entree){
+  evDown.preventDefault();
+  const fantome = document.createElement('div');
+  fantome.className = 'fantome-drag'; fantome.textContent = entree.noeud.nom || '—';
+  document.body.appendChild(fantome);
+  positionnerFantome(fantome, evDown.clientX, evDown.clientY);
+  entree.elt.classList.add('glissee');
+  glisseArbre = { entree, fantome, dernierElt:null, dernierMode:null, derniereEntreeCible:null };
+  window.addEventListener('pointermove', deplacerGlisser);
+  window.addEventListener('pointerup', terminerGlisser);
+  window.addEventListener('pointercancel', annulerGlisser);
+}
+function nettoyerCibleVisuelle(){
+  if(glisseArbre && glisseArbre.dernierElt){
+    glisseArbre.dernierElt.classList.remove('cible-avant','cible-apres','cible-enfant');
+  }
+}
+function deplacerGlisser(e){
+  if(!glisseArbre) return;
+  positionnerFantome(glisseArbre.fantome, e.clientX, e.clientY);
+  nettoyerCibleVisuelle();
+  glisseArbre.dernierElt = null; glisseArbre.dernierMode = null; glisseArbre.derniereEntreeCible = null;
+  const sousElt = document.elementFromPoint(e.clientX, e.clientY);
+  const ligneCible = sousElt ? sousElt.closest('.ligne-arbre') : null;
+  if(!ligneCible) return;
+  const entreeCible = listeLignesArbre.find(en=>en.elt===ligneCible);
+  if(!entreeCible || entreeCible===glisseArbre.entree || estDescendantOuSoi(glisseArbre.entree.noeud, entreeCible.noeud)) return;
+
+  const rect = ligneCible.getBoundingClientRect();
+  const indentCible = entreeCible.profondeur*20 + 4;
+  let mode;
+  if(entreeCible.parentArr===null){
+    mode = 'enfant';
+  }else if((e.clientX-rect.left) > indentCible+30){
+    mode = 'enfant';
+  }else{
+    mode = (e.clientY-rect.top) < rect.height/2 ? 'avant' : 'apres';
+  }
+  ligneCible.classList.add(mode==='enfant' ? 'cible-enfant' : (mode==='avant'?'cible-avant':'cible-apres'));
+  glisseArbre.dernierElt = ligneCible; glisseArbre.dernierMode = mode; glisseArbre.derniereEntreeCible = entreeCible;
+}
+function retirerEcouteursGlisser(){
+  window.removeEventListener('pointermove', deplacerGlisser);
+  window.removeEventListener('pointerup', terminerGlisser);
+  window.removeEventListener('pointercancel', annulerGlisser);
+}
+function terminerGlisser(){
+  if(!glisseArbre) return;
+  const {entree, fantome, dernierMode, derniereEntreeCible} = glisseArbre;
+  nettoyerCibleVisuelle();
+  fantome.remove();
+  entree.elt.classList.remove('glissee');
+  retirerEcouteursGlisser();
+
+  if(derniereEntreeCible && dernierMode){
+    const i = entree.parentArr.indexOf(entree.noeud);
+    if(i>=0) entree.parentArr.splice(i,1);
+    if(dernierMode==='enfant'){
+      if(!derniereEntreeCible.noeud.enfants) derniereEntreeCible.noeud.enfants = [];
+      derniereEntreeCible.noeud.enfants.push(entree.noeud);
+    }else{
+      const j = derniereEntreeCible.parentArr.indexOf(derniereEntreeCible.noeud);
+      derniereEntreeCible.parentArr.splice(dernierMode==='avant' ? j : j+1, 0, entree.noeud);
+    }
+    marquerModifieArbre();
+    redessinerArbre();
+  }
+  glisseArbre = null;
+}
+function annulerGlisser(){
+  if(!glisseArbre) return;
+  nettoyerCibleVisuelle();
+  glisseArbre.fantome.remove();
+  glisseArbre.entree.elt.classList.remove('glissee');
+  retirerEcouteursGlisser();
+  glisseArbre = null;
+}
+
+const overlayArbre = document.getElementById('overlay-arbre');
+function gardeAvantFermeture(e){ if(arbreModifie){ e.preventDefault(); e.returnValue=''; } }
+document.getElementById('btn-arborescence').addEventListener('click', ()=>{
+  arbreModifie = false;
+  majBanniereArbre();
+  redessinerArbre();
+  overlayArbre.classList.add('visible');
+  window.addEventListener('beforeunload', gardeAvantFermeture);
+});
+document.getElementById('btn-fermer-arbre').addEventListener('click', async ()=>{
+  window.removeEventListener('beforeunload', gardeAvantFermeture);
+  construireLayout(); redessiner(); redessinerLegende(); remplirSelecteurProfondeur();
+  overlayArbre.classList.remove('visible');
+  if(arbreModifie){
+    const conf = chargerConfigGithub();
+    if(conf.jeton){
+      try{
+        await enregistrerSurGithub();
+        afficherMessage('Enregistré', `Les modifications ont été enregistrées sur GitHub (${conf.proprietaire}/${conf.depot}).`);
+      }catch(err){
+        afficherMessage('Échec de l\'enregistrement GitHub',
+          `Les modifications restent dans l'application mais n'ont pas pu être envoyées à GitHub : ${err.message}. Utilise « Exporter JSON » pour ne pas les perdre.`);
+      }
+    }else{
+      afficherMessage('Non sauvegardé sur GitHub',
+        `Aucun jeton GitHub configuré — tes modifications restent dans l'application (l'éventail est déjà à jour), mais pense à utiliser « Exporter JSON » ou à configurer GitHub pour les conserver durablement.`);
+    }
+    arbreModifie = false;
   }
 });
 
@@ -748,7 +1214,7 @@ document.getElementById('btn-version').addEventListener('click', ()=>{
 document.getElementById('fermer-version').addEventListener('click', ()=>overlayVersion.classList.remove('visible'));
 
 /* fermeture au clic sur le fond des modales */
-[overlayEditer, overlayVersion, document.getElementById('overlay-message')].forEach(ov=>{
+[overlayEditer, overlayVersion, overlayGithub, document.getElementById('overlay-message')].forEach(ov=>{
   ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('visible'); });
 });
 
