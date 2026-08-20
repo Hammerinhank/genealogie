@@ -2,17 +2,765 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Généalogie</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Éventail généalogique</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#f5f5f7; color:#1d1d1f; text-align:center; padding:60px 20px; }
-  h1 { color:#0071e3; }
-  p { color:#86868b; }
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  :root{
+    --encre-fond:#1c2430;
+    --encre-fond-2:#232c3a;
+    --laiton:#b6905a;
+    --laiton-clair:#d9b98a;
+    --parchemin:#f3e9d2;
+    --parchemin-ombre:#e3d3ac;
+    --sepia:#3a2c1a;
+    --sepia-att:#6b5a40;
+    --liseré:#3a4557;
+    --texte-clair:#efe7d6;
+    --texte-att:#a9b3c4;
+    --danger:#c15b4a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--encre-fond);color:var(--texte-clair);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;}
+
+  #app{display:flex;flex-direction:column;height:100%;}
+
+  header{
+    display:flex;align-items:center;gap:.75rem;
+    padding:.6rem .9rem;background:linear-gradient(180deg,var(--encre-fond-2),var(--encre-fond));
+    border-bottom:1px solid var(--liseré);flex-wrap:wrap;
+  }
+  header h1{
+    font-family:'Fraunces',serif;font-weight:600;font-size:1.15rem;letter-spacing:.02em;
+    margin:0;color:var(--parchemin);flex:1 1 auto;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  header .sous-titre{
+    font-size:.72rem;color:var(--texte-att);margin-top:1px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  #titre-bloc{min-width:0;flex:1 1 auto;overflow:hidden;}
+
+  .badge-version{
+    font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--encre-fond);
+    background:var(--laiton-clair);border:none;border-radius:999px;padding:.3rem .65rem;
+    cursor:pointer;font-weight:600;letter-spacing:.03em;flex:0 0 auto;
+  }
+  .badge-version:active{transform:scale(.96);}
+
+  .barre-outils{
+    display:flex;gap:.4rem;padding:.45rem .7rem;background:var(--encre-fond-2);
+    border-bottom:1px solid var(--liseré);overflow-x:auto;flex-wrap:nowrap;
+    -webkit-overflow-scrolling:touch;
+  }
+  .barre-outils::-webkit-scrollbar{height:4px;}
+  .btn{
+    font-family:inherit;font-size:.76rem;background:var(--encre-fond);color:var(--texte-clair);
+    border:1px solid var(--liseré);border-radius:8px;padding:.4rem .65rem;cursor:pointer;
+    white-space:nowrap;flex:0 0 auto;
+  }
+  .btn:active{background:var(--liseré);}
+  .btn.accent{background:var(--laiton);color:var(--encre-fond);border-color:var(--laiton);font-weight:600;}
+  .btn.danger{border-color:var(--danger);color:var(--danger);}
+  .champ{
+    font-family:inherit;font-size:.78rem;background:var(--encre-fond);color:var(--texte-clair);
+    border:1px solid var(--liseré);border-radius:8px;padding:.4rem .6rem;min-width:8rem;
+  }
+  select.champ{min-width:9rem;}
+  .grp{display:flex;align-items:center;gap:.25rem;flex:0 0 auto;}
+  .grp label{font-size:.68rem;color:var(--texte-att);white-space:nowrap;}
+
+  main{position:relative;flex:1 1 auto;min-height:0;background:radial-gradient(ellipse at center,#2a3444,#171e28 78%);}
+  svg#carte{width:100%;height:100%;display:block;touch-action:none;cursor:grab;}
+  svg#carte.saisie{cursor:grabbing;}
+
+  text{user-select:none;-webkit-user-select:none;}
+  .segment{stroke:var(--sepia);stroke-width:.6;cursor:pointer;transition:filter .12s;}
+  .segment:hover,.segment.surbrille{filter:brightness(1.28);stroke-width:1.6;}
+  .etiquette{font-size:11px;fill:var(--sepia);pointer-events:none;}
+  .etiquette.dates{font-size:8.5px;fill:var(--sepia-att);}
+  .centre-cercle{fill:var(--parchemin);stroke:var(--laiton);stroke-width:2;}
+  .centre-texte{font-family:'Fraunces',serif;font-size:13px;fill:var(--sepia);text-anchor:middle;pointer-events:none;}
+  .centre-texte.dates{font-family:'JetBrains Mono',monospace;font-size:9px;fill:var(--sepia-att);}
+  .anneau-repere{fill:none;stroke:var(--parchemin);stroke-opacity:.06;stroke-dasharray:2 6;}
+
+  #panneau-details{
+    position:absolute;right:.7rem;bottom:.7rem;max-width:min(320px,86vw);
+    background:var(--parchemin);color:var(--sepia);border-radius:12px;padding:.75rem .9rem;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);display:none;font-size:.82rem;line-height:1.45;
+    border:1px solid var(--parchemin-ombre);
+  }
+  #panneau-details.visible{display:block;}
+  #panneau-details h3{margin:0 0 .2rem;font-family:'Fraunces',serif;font-size:1.02rem;}
+  #panneau-details .id-branche{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--sepia-att);}
+  #panneau-details .fermer{position:absolute;top:.35rem;right:.5rem;background:none;border:none;
+    font-size:1.1rem;color:var(--sepia-att);cursor:pointer;line-height:1;}
+
+  #legende{
+    position:absolute;left:.7rem;bottom:.7rem;background:rgba(28,36,48,.85);border:1px solid var(--liseré);
+    border-radius:10px;padding:.5rem .65rem;font-size:.7rem;max-width:46vw;max-height:38vh;overflow:auto;
+  }
+  #legende .item{display:flex;align-items:center;gap:.35rem;margin:.15rem 0;}
+  #legende .puce{width:.6rem;height:.6rem;border-radius:2px;flex:0 0 auto;}
+  #legende .titre{font-weight:600;color:var(--texte-clair);margin-bottom:.25rem;font-size:.68rem;
+    text-transform:uppercase;letter-spacing:.05em;color:var(--laiton-clair);}
+
+  #zoom-ctrl{position:absolute;top:.7rem;right:.7rem;display:flex;flex-direction:column;gap:.3rem;}
+  #zoom-ctrl button{
+    width:2.1rem;height:2.1rem;border-radius:8px;border:1px solid var(--liseré);
+    background:rgba(28,36,48,.85);color:var(--texte-clair);font-size:1.1rem;cursor:pointer;
+  }
+  #zoom-ctrl button:active{background:var(--liseré);}
+
+  .recherche-nav{position:absolute;top:.7rem;left:.7rem;display:flex;gap:.35rem;align-items:center;}
+
+  .overlay{
+    position:fixed;inset:0;background:rgba(10,13,18,.72);display:none;align-items:center;justify-content:center;
+    z-index:50;padding:1rem;
+  }
+  .overlay.visible{display:flex;}
+  .carte-modale{
+    background:var(--parchemin);color:var(--sepia);border-radius:14px;max-width:640px;width:100%;
+    max-height:88vh;overflow:auto;padding:1.1rem 1.2rem;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5);
+  }
+  .carte-modale h2{font-family:'Fraunces',serif;margin-top:0;font-size:1.15rem;}
+  .carte-modale .fermer{position:absolute;top:.6rem;right:.7rem;background:none;border:none;font-size:1.3rem;
+    color:var(--sepia-att);cursor:pointer;}
+  .carte-modale table{width:100%;border-collapse:collapse;font-size:.82rem;}
+  .carte-modale td,.carte-modale th{padding:.35rem .3rem;border-bottom:1px solid var(--parchemin-ombre);
+    text-align:left;vertical-align:top;}
+  .carte-modale textarea{
+    width:100%;min-height:40vh;font-family:'JetBrains Mono',monospace;font-size:.76rem;
+    background:#fffdf7;color:var(--sepia);border:1px solid var(--parchemin-ombre);border-radius:8px;
+    padding:.6rem;resize:vertical;
+  }
+  .erreur-json{color:var(--danger);font-size:.78rem;margin-top:.4rem;white-space:pre-wrap;}
+  .aide-format{font-size:.76rem;color:var(--sepia-att);margin-top:.6rem;line-height:1.5;}
+  .aide-format code{background:var(--parchemin-ombre);padding:.05rem .3rem;border-radius:4px;}
+  .actions-modale{display:flex;gap:.5rem;margin-top:.7rem;flex-wrap:wrap;}
 </style>
 </head>
 <body>
-<h1>Généalogie</h1>
-<p>Nouvelle application créée avec Le Déployeur.</p>
-<p>Déploie ton code depuis l'étape 3 pour remplacer cette page.</p>
+<div id="app">
+
+  <header>
+    <div id="titre-bloc">
+      <h1 id="titre-app">Éventail généalogique</h1>
+      <div class="sous-titre" id="sous-titre-app">Chargement…</div>
+    </div>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V1</button>
+  </header>
+
+  <div class="barre-outils">
+    <button class="btn accent" id="btn-exemple">Exemple</button>
+    <button class="btn" id="btn-importer">Importer JSON</button>
+    <input type="file" id="fichier-import" accept="application/json,.json" style="display:none">
+    <button class="btn" id="btn-exporter">Exporter JSON</button>
+    <button class="btn" id="btn-editer">Éditer les données</button>
+    <div class="grp">
+      <label for="sel-profondeur">Jusqu'à</label>
+      <select class="champ" id="sel-profondeur"></select>
+    </div>
+    <div class="grp">
+      <label for="curseur-epaisseur">Anneaux</label>
+      <input type="range" id="curseur-epaisseur" min="36" max="120" value="76">
+    </div>
+    <div class="grp">
+      <label><input type="checkbox" id="case-dates" checked> Dates</label>
+    </div>
+    <button class="btn" id="btn-reinit">Réinitialiser la vue</button>
+  </div>
+
+  <main>
+    <svg id="carte" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <filter id="grain" x="-20%" y="-20%" width="140%" height="140%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="bruit"/>
+          <feColorMatrix in="bruit" type="matrix"
+            values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.05 0"/>
+        </filter>
+      </defs>
+      <g id="viewport" transform="translate(500,400) scale(1)">
+        <circle id="fond-grain" cx="0" cy="0" r="1400" fill="#fff" filter="url(#grain)" opacity=".5"></circle>
+        <g id="reperes"></g>
+        <g id="segments"></g>
+        <g id="centre"></g>
+      </g>
+    </svg>
+
+    <div class="recherche-nav">
+      <input class="champ" id="champ-recherche" placeholder="Rechercher un nom…" style="min-width:9rem;">
+      <button class="btn" id="btn-suivant">Suivant</button>
+      <span id="compte-recherche" style="font-size:.68rem;color:var(--texte-att);"></span>
+    </div>
+
+    <div id="zoom-ctrl">
+      <button id="btn-zoom-plus">+</button>
+      <button id="btn-zoom-moins">−</button>
+    </div>
+
+    <div id="legende"></div>
+
+    <div id="panneau-details">
+      <button class="fermer" id="btn-fermer-details">✕</button>
+      <div class="id-branche" id="det-id"></div>
+      <h3 id="det-nom"></h3>
+      <div id="det-corps"></div>
+    </div>
+  </main>
+</div>
+
+<!-- Modale : édition JSON -->
+<div class="overlay" id="overlay-editer">
+  <div class="carte-modale">
+    <button class="fermer" id="fermer-editer">✕</button>
+    <h2>Éditer les données</h2>
+    <textarea id="zone-json" spellcheck="false"></textarea>
+    <div class="erreur-json" id="erreur-json"></div>
+    <div class="actions-modale">
+      <button class="btn accent" id="btn-appliquer-json">Appliquer</button>
+      <button class="btn" id="btn-annuler-json">Annuler</button>
+    </div>
+    <div class="aide-format">
+      <strong>Format attendu</strong> — un objet avec <code>titre</code>, <code>edition</code> (optionnel) et
+      <code>racine</code>. <code>racine</code> et chaque enfant ont : <code>nom</code>, <code>naissance</code>,
+      <code>deces</code> (optionnels), et éventuellement <code>conjoint</code>
+      (<code>{nom, naissance, deces, mariage}</code>) et <code>enfants</code> (un tableau du même format, avec en
+      plus un <code>id</code> court comme <code>"A"</code>, <code>"A.1"</code> pour les repères de branche —
+      facultatif, régénéré sinon). L'éventail se dessine automatiquement : la largeur d'angle de chaque branche
+      est proportionnelle à son nombre de descendants.
+    </div>
+  </div>
+</div>
+
+<!-- Modale : historique des versions -->
+<div class="overlay" id="overlay-version">
+  <div class="carte-modale">
+    <button class="fermer" id="fermer-version">✕</button>
+    <h2>Historique des versions</h2>
+    <table id="table-version"></table>
+  </div>
+</div>
+
+<!-- Modale : détails export -->
+<div class="overlay" id="overlay-message">
+  <div class="carte-modale" style="max-width:420px;">
+    <button class="fermer" id="fermer-message">✕</button>
+    <h2 id="titre-message"></h2>
+    <div id="corps-message"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ===================== Version ===================== */
+const VERSION = "V1";
+const HISTORIQUE_VERSIONS = [
+  { version:"V1", date:"20/08/2026", notes:"Version initiale : rendu en éventail (arc de cercle, générations concentriques), largeur de branche proportionnelle au nombre de descendants, couleurs par branche, étiquettes radiales avec bascule de lisibilité, panneau de détail au clic, recherche de nom, zoom/déplacement souris + tactile (molette, glisser, pincement), limitation de profondeur affichée, réglage de l'épaisseur des anneaux, import/export/édition JSON, données d'exemple." }
+];
+
+/* ===================== Palette des branches ===================== */
+const PALETTE_BRANCHES = [
+  {h:24, s:45, base:52},   // terre cuite
+  {h:96, s:22, base:48},   // sauge
+  {h:206,s:28, base:52},   // ardoise bleutée
+  {h:340,s:26, base:56},   // vieux rose
+  {h:44, s:48, base:50},   // ocre
+  {h:266,s:18, base:54},   // prune
+  {h:174,s:24, base:48},   // vert-de-gris
+  {h:12, s:35, base:58},   // brique claire
+];
+function couleurBranche(index, profondeur){
+  const p = PALETTE_BRANCHES[index % PALETTE_BRANCHES.length];
+  const l = Math.min(82, p.base + (profondeur-1)*7);
+  return `hsl(${p.h} ${p.s}% ${l}%)`;
+}
+
+/* ===================== Données d'exemple ===================== */
+function donneesExemple(){
+  return {
+    titre: "Descendance de Pascal TAVERNIER et de Louise BÉRAUD",
+    edition: "Exemple à remplacer par vos propres données",
+    racine: {
+      nom:"Pascal TAVERNIER", naissance:"1846", deces:"1927",
+      conjoint:{ nom:"Louise BÉRAUD", naissance:"1861", deces:"1937", mariage:"1861" },
+      enfants:[
+        { id:"A", nom:"François (exemple)", naissance:"1863", deces:"",
+          conjoint:{nom:"Marie (exemple)"},
+          enfants:[
+            { id:"A.1", nom:"Henri (exemple)", naissance:"1890",
+              enfants:[
+                { id:"A.1.1", nom:"Descendant (exemple)", naissance:"1920" },
+                { id:"A.1.2", nom:"Descendant (exemple)", naissance:"1922" }
+              ]},
+            { id:"A.2", nom:"Marthe (exemple)", naissance:"1893" }
+          ]},
+        { id:"B", nom:"Jeanne (exemple)", naissance:"1866",
+          enfants:[
+            { id:"B.1", nom:"Descendant (exemple)", naissance:"1891" },
+            { id:"B.2", nom:"Descendant (exemple)", naissance:"1894" },
+            { id:"B.3", nom:"Descendant (exemple)", naissance:"1897" }
+          ]},
+        { id:"C", nom:"Marcel (exemple)", naissance:"1869",
+          enfants:[
+            { id:"C.1", nom:"Descendant (exemple)", naissance:"1895" }
+          ]},
+        { id:"D", nom:"Pierre (exemple)", naissance:"1872" }
+      ]
+    }
+  };
+}
+
+/* ===================== État ===================== */
+let donnees = null;
+let listeNoeuds = [];   // {noeud, chemin, angleMid, rMid, coul}
+let rInner0 = 62;
+let epaisseurAnneau = 76;
+let profondeurMax = 999;
+let afficherDates = true;
+let profondeurReelleMax = 1;
+
+const svg = document.getElementById('carte');
+const gViewport = document.getElementById('viewport');
+const gSegments = document.getElementById('segments');
+const gCentre = document.getElementById('centre');
+const gReperes = document.getElementById('reperes');
+
+/* canvas caché pour mesurer le texte avant troncature */
+const canvasMesure = document.createElement('canvas');
+const ctxMesure = canvasMesure.getContext('2d');
+function largeurTexte(txt, police){
+  ctxMesure.font = police;
+  return ctxMesure.measureText(txt).width;
+}
+function tronquer(txt, maxPx, police){
+  if(largeurTexte(txt, police) <= maxPx) return txt;
+  let t = txt;
+  while(t.length > 1 && largeurTexte(t+'…', police) > maxPx){ t = t.slice(0,-1); }
+  return t.length < txt.length ? t+'…' : t;
+}
+
+/* ===================== Calcul du poids (nb de descendants) ===================== */
+function poidsNoeud(n){
+  if(!n.enfants || !n.enfants.length) return 1;
+  return n.enfants.reduce((s,e)=>s+poidsNoeud(e), 0);
+}
+
+/* ===================== Mise en page angulaire ===================== */
+function construireLayout(){
+  listeNoeuds = [];
+  profondeurReelleMax = 1;
+  const racine = donnees.racine;
+  const a0 = -Math.PI/2;
+  const a1 = a0 + Math.PI*2;
+  if(!racine.enfants || !racine.enfants.length) return;
+  const poids = racine.enfants.map(poidsNoeud);
+  const total = poids.reduce((a,b)=>a+b,0) || 1;
+  let curseur = a0;
+  racine.enfants.forEach((enf, i)=>{
+    const part = (a1-a0) * (poids[i]/total);
+    const coul0 = couleurBranche(i,1);
+    disposer(enf, curseur, curseur+part, 1, i, coul0, [enf.id || String.fromCharCode(65+i)]);
+    curseur += part;
+  });
+}
+function disposer(n, ang0, ang1, profondeur, indexBranche, coulBranche, chemin){
+  n._a0=ang0; n._a1=ang1; n._prof=profondeur; n._coul=couleurBranche(indexBranche, profondeur); n._chemin=chemin;
+  profondeurReelleMax = Math.max(profondeurReelleMax, profondeur);
+  listeNoeuds.push(n);
+  if(n.enfants && n.enfants.length && profondeur < profondeurMax){
+    const poids = n.enfants.map(poidsNoeud);
+    const total = poids.reduce((a,b)=>a+b,0) || 1;
+    let curseur = ang0;
+    n.enfants.forEach((enf,i)=>{
+      const part = (ang1-ang0) * (poids[i]/total);
+      disposer(enf, curseur, curseur+part, profondeur+1, indexBranche, coulBranche, chemin.concat(enf.id || (i+1)));
+      curseur += part;
+    });
+  }
+}
+
+/* ===================== Dessin ===================== */
+function polaire(r, ang){ return {x:r*Math.cos(ang), y:r*Math.sin(ang)}; }
+function cheminSegment(rInt, rExt, a0, a1){
+  const pad = Math.min(0.006, (a1-a0)*0.06);
+  const b0 = a0+pad, b1 = a1-pad;
+  const p0o = polaire(rExt,b0), p1o = polaire(rExt,b1);
+  const p0i = polaire(rInt,b0), p1i = polaire(rInt,b1);
+  const large = (b1-b0) > Math.PI ? 1 : 0;
+  return `M ${p0i.x.toFixed(2)} ${p0i.y.toFixed(2)} L ${p0o.x.toFixed(2)} ${p0o.y.toFixed(2)} `+
+         `A ${rExt.toFixed(2)} ${rExt.toFixed(2)} 0 ${large} 1 ${p1o.x.toFixed(2)} ${p1o.y.toFixed(2)} `+
+         `L ${p1i.x.toFixed(2)} ${p1i.y.toFixed(2)} `+
+         `A ${rInt.toFixed(2)} ${rInt.toFixed(2)} 0 ${large} 0 ${p0i.x.toFixed(2)} ${p0i.y.toFixed(2)} Z`;
+}
+
+function redessiner(){
+  gSegments.innerHTML = '';
+  gCentre.innerHTML = '';
+  gReperes.innerHTML = '';
+
+  // repères concentriques décoratifs (cernes)
+  for(let d=1; d<=profondeurReelleMax+1; d++){
+    const r = rInner0 + d*epaisseurAnneau;
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('class','anneau-repere'); c.setAttribute('cx',0); c.setAttribute('cy',0); c.setAttribute('r',r);
+    gReperes.appendChild(c);
+  }
+
+  // cercle central (racine)
+  const racine = donnees.racine;
+  const cc = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  cc.setAttribute('class','centre-cercle'); cc.setAttribute('cx',0); cc.setAttribute('cy',0); cc.setAttribute('r',rInner0);
+  gCentre.appendChild(cc);
+  const lignesCentre = [];
+  lignesCentre.push({t:racine.nom||'—', cls:''});
+  if(racine.naissance||racine.deces) lignesCentre.push({t:formatDates(racine), cls:'dates'});
+  if(racine.conjoint){
+    lignesCentre.push({t:'& '+(racine.conjoint.nom||'—'), cls:''});
+    if(racine.conjoint.naissance||racine.conjoint.deces) lignesCentre.push({t:formatDates(racine.conjoint), cls:'dates'});
+  }
+  const decal = -(lignesCentre.length-1)*7;
+  lignesCentre.forEach((l,i)=>{
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('class','centre-texte'+(l.cls?' '+l.cls:''));
+    t.setAttribute('x',0); t.setAttribute('y', decal + i*13);
+    t.textContent = tronquer(l.t, rInner0*1.75, l.cls==='dates'?'9px JetBrains Mono':'600 13px Fraunces');
+    gCentre.appendChild(t);
+  });
+
+  // segments
+  listeNoeuds.forEach(n=>{
+    if(n._prof > profondeurMax) return;
+    const rInt = rInner0 + (n._prof-1)*epaisseurAnneau;
+    const rExt = rInner0 + n._prof*epaisseurAnneau;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('class','segment');
+    path.setAttribute('d', cheminSegment(rInt, rExt, n._a0, n._a1));
+    path.setAttribute('fill', n._coul);
+    path.dataset.chemin = n._chemin.join('>');
+    path.addEventListener('click', ()=>selectionner(n, path));
+    gSegments.appendChild(path);
+
+    const angMid = (n._a0+n._a1)/2;
+    const largeurAngPx = (n._a1-n._a0) * (rInt+rExt)/2;
+    const hauteurAnneau = rExt-rInt;
+    if(largeurAngPx < 34) return; // trop fin : pas d'étiquette, reste cliquable
+
+    let deg = angMid*180/Math.PI;
+    deg = ((deg%360)+360)%360;
+    const gauche = deg>90 && deg<270;
+    const rTexte = gauche ? rExt-6 : rInt+6;
+    const ancre = gauche ? 'end' : 'start';
+    const rotation = gauche ? deg+180 : deg;
+    const pt = polaire(rTexte, angMid);
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('transform', `translate(${pt.x.toFixed(2)} ${pt.y.toFixed(2)}) rotate(${rotation.toFixed(2)})`);
+
+    const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t1.setAttribute('class','etiquette'); t1.setAttribute('text-anchor',ancre);
+    const maxPx = Math.max(largeurAngPx-10, hauteurAnneau*3.4);
+    t1.textContent = tronquer(n.nom||'—', maxPx, '11px -apple-system,sans-serif');
+    g.appendChild(t1);
+
+    if(afficherDates && hauteurAnneau > 30 && (n.naissance||n.deces)){
+      const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t2.setAttribute('class','etiquette dates'); t2.setAttribute('text-anchor',ancre);
+      t2.setAttribute('dy','11');
+      t2.textContent = tronquer(formatDates(n), maxPx, '8.5px -apple-system,sans-serif');
+      g.appendChild(t2);
+    }
+    gSegments.appendChild(g);
+  });
+}
+function formatDates(n){
+  const nai=n.naissance||'', dec=n.deces||'';
+  if(nai&&dec) return `${nai} – ${dec}`;
+  if(nai) return `né ${nai}`;
+  if(dec) return `† ${dec}`;
+  return '';
+}
+
+/* ===================== Légende ===================== */
+function redessinerLegende(){
+  const leg = document.getElementById('legende');
+  leg.innerHTML = '<div class="titre">Branches</div>';
+  if(!donnees.racine.enfants) return;
+  donnees.racine.enfants.forEach((e,i)=>{
+    const div = document.createElement('div'); div.className='item';
+    const puce = document.createElement('div'); puce.className='puce';
+    puce.style.background = couleurBranche(i,1);
+    const label = document.createElement('span');
+    const n = poidsNoeud(e);
+    label.textContent = `${e.id||String.fromCharCode(65+i)} — ${e.nom||'—'} (${n})`;
+    div.appendChild(puce); div.appendChild(label);
+    leg.appendChild(div);
+  });
+}
+
+/* ===================== Sélection / panneau de détail ===================== */
+let segmentSurbrille = null;
+function selectionner(n, path){
+  if(segmentSurbrille) segmentSurbrille.classList.remove('surbrille');
+  if(path){ path.classList.add('surbrille'); segmentSurbrille = path; }
+  const panneau = document.getElementById('panneau-details');
+  panneau.classList.add('visible');
+  document.getElementById('det-id').textContent = n._chemin ? n._chemin.join(' › ') : '';
+  document.getElementById('det-nom').textContent = n.nom || '—';
+  let corps = '';
+  const d = formatDates(n);
+  if(d) corps += `<div>${d}</div>`;
+  if(n.conjoint){
+    corps += `<div style="margin-top:.35rem;">⚭ ${n.conjoint.nom||'—'}`;
+    const dc = formatDates(n.conjoint);
+    if(dc) corps += ` — ${dc}`;
+    if(n.conjoint.mariage) corps += ` <span style="color:var(--sepia-att)">(mariage ${n.conjoint.mariage})</span>`;
+    corps += `</div>`;
+  }
+  if(n.notes) corps += `<div style="margin-top:.35rem;font-style:italic;">${n.notes}</div>`;
+  const nb = n.enfants ? n.enfants.length : 0;
+  const desc = poidsNoeud(n);
+  corps += `<div style="margin-top:.5rem;color:var(--sepia-att);">${nb} enfant(s) direct(s) · ${desc} descendant(s) au total</div>`;
+  document.getElementById('det-corps').innerHTML = corps;
+}
+document.getElementById('btn-fermer-details').addEventListener('click', ()=>{
+  document.getElementById('panneau-details').classList.remove('visible');
+  if(segmentSurbrille){ segmentSurbrille.classList.remove('surbrille'); segmentSurbrille=null; }
+});
+
+/* ===================== Zoom / déplacement ===================== */
+let vue = {s:1, tx:500, ty:400};
+function appliquerVue(){
+  gViewport.setAttribute('transform', `translate(${vue.tx.toFixed(2)} ${vue.ty.toFixed(2)}) scale(${vue.s.toFixed(4)})`);
+}
+function tailleSVG(){
+  const r = svg.getBoundingClientRect();
+  return {w:r.width||1000, h:r.height||700, top:r.top, left:r.left};
+}
+function ajusterVue(){
+  const {w,h} = tailleSVG();
+  const rayonMax = rInner0 + Math.min(profondeurReelleMax, profondeurMax)*epaisseurAnneau + 20;
+  const s = Math.max(0.15, Math.min(w,h)*0.47/rayonMax);
+  vue = {s, tx:w/2, ty:h/2};
+  appliquerVue();
+}
+function zoomAutour(mx, my, sNouv){
+  sNouv = Math.max(0.12, Math.min(6, sNouv));
+  const lx = (mx - vue.tx)/vue.s, ly = (my - vue.ty)/vue.s;
+  vue.tx = mx - sNouv*lx; vue.ty = my - sNouv*ly; vue.s = sNouv;
+  appliquerVue();
+}
+document.getElementById('btn-zoom-plus').addEventListener('click', ()=>{
+  const {w,h}=tailleSVG(); zoomAutour(w/2,h/2, vue.s*1.25);
+});
+document.getElementById('btn-zoom-moins').addEventListener('click', ()=>{
+  const {w,h}=tailleSVG(); zoomAutour(w/2,h/2, vue.s*0.8);
+});
+document.getElementById('btn-reinit').addEventListener('click', ajusterVue);
+
+svg.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const rect = svg.getBoundingClientRect();
+  const mx = e.clientX-rect.left, my = e.clientY-rect.top;
+  zoomAutour(mx, my, vue.s * (e.deltaY<0 ? 1.12 : 0.89));
+}, {passive:false});
+
+const pointeurs = new Map();
+let glissement = null;   // {x,y,tx,ty}
+let pincement = null;    // {dist, mid}
+
+function distancePts(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function milieuPts(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
+
+svg.addEventListener('pointerdown', (e)=>{
+  svg.setPointerCapture(e.pointerId);
+  pointeurs.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  if(pointeurs.size===1){
+    svg.classList.add('saisie');
+    glissement = {x:e.clientX, y:e.clientY, tx:vue.tx, ty:vue.ty};
+  } else if(pointeurs.size===2){
+    glissement = null;
+    const [a,b] = [...pointeurs.values()];
+    pincement = {dist:distancePts(a,b), mid:milieuPts(a,b)};
+  }
+});
+svg.addEventListener('pointermove', (e)=>{
+  if(!pointeurs.has(e.pointerId)) return;
+  pointeurs.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  const rect = svg.getBoundingClientRect();
+  if(pointeurs.size===1 && glissement){
+    vue.tx = glissement.tx + (e.clientX-glissement.x);
+    vue.ty = glissement.ty + (e.clientY-glissement.y);
+    appliquerVue();
+  } else if(pointeurs.size===2 && pincement){
+    const [a,b] = [...pointeurs.values()];
+    const nd = distancePts(a,b), nm = milieuPts(a,b);
+    vue.tx += nm.x-pincement.mid.x; vue.ty += nm.y-pincement.mid.y;
+    const ratio = nd/pincement.dist;
+    zoomAutour(nm.x-rect.left, nm.y-rect.top, vue.s*ratio);
+    pincement = {dist:nd, mid:nm};
+  }
+});
+function relacherPointeur(e){
+  pointeurs.delete(e.pointerId);
+  if(pointeurs.size<2) pincement=null;
+  if(pointeurs.size===0){ svg.classList.remove('saisie'); glissement=null; }
+}
+svg.addEventListener('pointerup', relacherPointeur);
+svg.addEventListener('pointercancel', relacherPointeur);
+
+/* ===================== Recherche ===================== */
+let resultatsRecherche = []; let indexRecherche = -1;
+function lancerRecherche(){
+  const q = document.getElementById('champ-recherche').value.trim().toLowerCase();
+  resultatsRecherche = []; indexRecherche = -1;
+  if(!q){ document.getElementById('compte-recherche').textContent=''; return; }
+  listeNoeuds.forEach(n=>{ if((n.nom||'').toLowerCase().includes(q)) resultatsRecherche.push(n); });
+  document.getElementById('compte-recherche').textContent = resultatsRecherche.length
+    ? `0/${resultatsRecherche.length}` : 'aucun résultat';
+  if(resultatsRecherche.length) allerAuResultatSuivant();
+}
+function allerAuResultatSuivant(){
+  if(!resultatsRecherche.length) return;
+  indexRecherche = (indexRecherche+1) % resultatsRecherche.length;
+  const n = resultatsRecherche[indexRecherche];
+  document.getElementById('compte-recherche').textContent = `${indexRecherche+1}/${resultatsRecherche.length}`;
+  const angMid = (n._a0+n._a1)/2;
+  const rMid = rInner0 + (n._prof-0.5)*epaisseurAnneau;
+  const pt = polaire(rMid, angMid);
+  const {w,h} = tailleSVG();
+  const sCible = Math.max(vue.s, 1.6);
+  vue.tx = w/2 - sCible*pt.x; vue.ty = h/2 - sCible*pt.y; vue.s = sCible;
+  appliquerVue();
+  selectionner(n, [...gSegments.querySelectorAll('path')].find(p=>p.dataset.chemin===n._chemin.join('>')));
+}
+document.getElementById('champ-recherche').addEventListener('keydown', e=>{ if(e.key==='Enter') lancerRecherche(); });
+document.getElementById('btn-suivant').addEventListener('click', ()=>{
+  if(resultatsRecherche.length) allerAuResultatSuivant(); else lancerRecherche();
+});
+
+/* ===================== Contrôles génériques ===================== */
+function remplirSelecteurProfondeur(){
+  const sel = document.getElementById('sel-profondeur');
+  const val = sel.value || '999';
+  sel.innerHTML = '';
+  for(let d=1; d<=profondeurReelleMax; d++){
+    const o = document.createElement('option'); o.value=d; o.textContent = `génération ${d}`;
+    sel.appendChild(o);
+  }
+  const oTout = document.createElement('option'); oTout.value='999'; oTout.textContent='tout afficher';
+  sel.appendChild(oTout);
+  sel.value = (val==='999' || Number(val)<=profondeurReelleMax) ? val : '999';
+  profondeurMax = Number(sel.value);
+}
+document.getElementById('sel-profondeur').addEventListener('change', (e)=>{
+  profondeurMax = Number(e.target.value);
+  construireLayout(); redessiner(); redessinerLegende();
+});
+document.getElementById('curseur-epaisseur').addEventListener('input', (e)=>{
+  epaisseurAnneau = Number(e.target.value);
+  redessiner();
+});
+document.getElementById('case-dates').addEventListener('change', (e)=>{
+  afficherDates = e.target.checked; redessiner();
+});
+
+/* ===================== Chargement des données ===================== */
+function chargerDonnees(obj, ajusterVueApres){
+  donnees = obj;
+  document.getElementById('titre-app').textContent = donnees.titre || 'Éventail généalogique';
+  document.getElementById('sous-titre-app').textContent = donnees.edition || '';
+  profondeurMax = 999;
+  construireLayout();
+  remplirSelecteurProfondeur();
+  redessiner();
+  redessinerLegende();
+  if(ajusterVueApres) ajusterVue();
+}
+document.getElementById('btn-exemple').addEventListener('click', ()=>{
+  chargerDonnees(donneesExemple(), true);
+});
+
+/* import fichier */
+document.getElementById('btn-importer').addEventListener('click', ()=>document.getElementById('fichier-import').click());
+document.getElementById('fichier-import').addEventListener('change', (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const lecteur = new FileReader();
+  lecteur.onload = ()=>{
+    try{
+      const obj = JSON.parse(lecteur.result);
+      if(!obj.racine) throw new Error('champ "racine" manquant');
+      chargerDonnees(obj, true);
+    }catch(err){ afficherMessage('Import impossible', `Le fichier n'a pas pu être lu : ${err.message}`); }
+  };
+  lecteur.readAsText(f);
+  e.target.value = '';
+});
+
+/* export */
+document.getElementById('btn-exporter').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(donnees, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'genealogie.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+
+/* édition JSON */
+const overlayEditer = document.getElementById('overlay-editer');
+document.getElementById('btn-editer').addEventListener('click', ()=>{
+  document.getElementById('zone-json').value = JSON.stringify(donnees, null, 2);
+  document.getElementById('erreur-json').textContent = '';
+  overlayEditer.classList.add('visible');
+});
+document.getElementById('fermer-editer').addEventListener('click', ()=>overlayEditer.classList.remove('visible'));
+document.getElementById('btn-annuler-json').addEventListener('click', ()=>overlayEditer.classList.remove('visible'));
+document.getElementById('btn-appliquer-json').addEventListener('click', ()=>{
+  try{
+    const obj = JSON.parse(document.getElementById('zone-json').value);
+    if(!obj.racine) throw new Error('champ "racine" manquant');
+    chargerDonnees(obj, true);
+    overlayEditer.classList.remove('visible');
+  }catch(err){
+    document.getElementById('erreur-json').textContent = 'Erreur : '+err.message;
+  }
+});
+
+/* ===================== Modales génériques ===================== */
+function afficherMessage(titre, html){
+  document.getElementById('titre-message').textContent = titre;
+  document.getElementById('corps-message').innerHTML = html;
+  document.getElementById('overlay-message').classList.add('visible');
+}
+document.getElementById('fermer-message').addEventListener('click', ()=>document.getElementById('overlay-message').classList.remove('visible'));
+
+const overlayVersion = document.getElementById('overlay-version');
+document.getElementById('btn-version').addEventListener('click', ()=>{
+  const tbl = document.getElementById('table-version');
+  tbl.innerHTML = '<tr><th>Version</th><th>Date</th><th>Détail</th></tr>' +
+    HISTORIQUE_VERSIONS.map(h=>`<tr><td><strong>${h.version}</strong></td><td>${h.date}</td><td>${h.notes}</td></tr>`).join('');
+  overlayVersion.classList.add('visible');
+});
+document.getElementById('fermer-version').addEventListener('click', ()=>overlayVersion.classList.remove('visible'));
+
+/* fermeture au clic sur le fond des modales */
+[overlayEditer, overlayVersion, document.getElementById('overlay-message')].forEach(ov=>{
+  ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('visible'); });
+});
+
+/* ===================== Redimensionnement ===================== */
+window.addEventListener('resize', ()=>{ /* la vue courante (pan/zoom) est conservée */ });
+
+/* ===================== Démarrage ===================== */
+document.getElementById('btn-version').textContent = VERSION;
+chargerDonnees(donneesExemple(), true);
+window.addEventListener('load', ajusterVue);
+
+})();
+</script>
 </body>
 </html>
