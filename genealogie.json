@@ -760,11 +760,21 @@
                             "naissance": "05/10/1990",
                             "enfants": [
                               {
+                                "nom": "Louis",
+                                "naissance": "7/01/2023",
+                                "enfants": [],
+                                "deces": ""
+                              },
+                              {
                                 "nom": "Gabrielle",
                                 "naissance": "",
                                 "enfants": []
                               }
-                            ]
+                            ],
+                            "deces": "",
+                            "conjoint": {
+                              "nom": "Chi phan"
+                            }
                           }
                         ]
                       }
