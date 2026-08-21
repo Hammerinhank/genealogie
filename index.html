@@ -79,9 +79,13 @@
   text{user-select:none;-webkit-user-select:none;}
   .segment{stroke:var(--sepia);stroke-width:.6;cursor:pointer;transition:filter .12s;}
   .segment:hover,.segment.surbrille{filter:brightness(1.28);stroke-width:1.6;}
+  .segment.appui-en-cours{filter:brightness(1.4) saturate(1.35);stroke-width:1.8;transition:filter 550ms linear;}
+  .segment.appui-declenche{filter:brightness(1.75);transition:filter .15s;}
   .etiquette{font-size:11px;fill:var(--sepia);pointer-events:none;}
   .etiquette.dates{font-size:8.5px;fill:var(--sepia-att);}
-  .centre-cercle{fill:var(--parchemin);stroke:var(--laiton);stroke-width:2;}
+  .centre-cercle{fill:var(--parchemin);stroke:var(--laiton);stroke-width:2;cursor:pointer;transition:filter .12s;}
+  .centre-cercle.appui-en-cours{filter:brightness(.92) saturate(1.3);transition:filter 550ms linear;}
+  .centre-cercle.appui-declenche{filter:brightness(.78);transition:filter .15s;}
   .centre-texte{font-family:'Fraunces',serif;font-size:13px;fill:var(--sepia);text-anchor:middle;pointer-events:none;}
   .centre-texte.dates{font-family:'JetBrains Mono',monospace;font-size:9px;fill:var(--sepia-att);}
   .anneau-repere{fill:none;stroke:var(--parchemin);stroke-opacity:.06;stroke-dasharray:2 6;}
@@ -204,13 +208,13 @@
   .fantome-drag{position:fixed;z-index:200;pointer-events:none;background:var(--parchemin);border:2px solid var(--laiton);
     border-radius:6px;padding:.3rem .6rem;font-size:.8rem;color:var(--sepia);box-shadow:0 8px 22px rgba(0,0,0,.4);
     max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:rotate(-2deg) scale(1.04);}
-  #toast-arbre{
+  #toast-app{
     position:fixed; left:50%; top:4.3rem; transform:translateX(-50%); z-index:120;
     background:var(--sepia); color:var(--parchemin); font-size:.78rem; padding:.5rem .95rem;
     border-radius:999px; box-shadow:0 8px 20px rgba(0,0,0,.4); opacity:0; pointer-events:none;
     transition:opacity .25s; max-width:82vw; text-align:center;
   }
-  #toast-arbre.visible{opacity:1;}
+  #toast-app.visible{opacity:1;}
 </style>
 </head>
 <body>
@@ -221,7 +225,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V7</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V8</button>
   </header>
 
   <div class="barre-outils">
@@ -432,17 +436,20 @@
       <button class="btn accent" id="btn-fermer-arbre">Fermer et enregistrer</button>
     </div>
     <div class="corps-arbre" id="corps-arbre"></div>
-    <div id="toast-arbre"></div>
   </div>
 </div>
+
+<!-- Toast global (visible depuis le graphique en éventail comme depuis l'arborescence) -->
+<div id="toast-app"></div>
 
 <script>
 (function(){
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V7";
+const VERSION = "V8";
 const HISTORIQUE_VERSIONS = [
+  { version:"V8", date:"21/08/2026", notes:"Ajout de l'appui prolongé sur le graphique en éventail lui-même (un segment ou le cercle central) pour ouvrir la même fenêtre d'édition complète que dans l'arborescence — coexiste proprement avec le déplacement (pan) et le pincement (zoom) déjà en place : un déplacement ou un deuxième doigt annule l'appui en cours. Retour visuel assorti (teinte progressive puis flash) directement sur le segment ou le cercle concerné. Le clic normal (sélection/panneau de détail) n'est plus déclenché juste après un appui prolongé. Le toast de confirmation et la fenêtre d'édition sont désormais partagés entre l'arborescence et le graphique." },
   { version:"V7", date:"21/08/2026", notes:"Correction du vrai problème derrière « l'appui long ne fait rien » : la fenêtre d'édition d'une personne (et la confirmation de suppression) s'ouvraient bien, mais restaient cachées sous la page plein écran de l'arborescence, qui partageait le même niveau d'empilement (z-index) et venait après elles dans la page — elles n'apparaissaient qu'une fois l'arborescence refermée. La page arborescence a maintenant un niveau plus bas que ces fenêtres, qui s'affichent donc correctement par-dessus. (Le changement Pointer Events → événements tactiles natifs de la V6 était inutile pour ce bug précis mais reste en place, sans effet négatif.)" },
   { version:"V6", date:"21/08/2026", notes:"Correction : l'appui prolongé pour éditer une personne ne se déclenchait pas sur iPhone (Safari iOS gère mal les Pointer Events pour ce type de geste personnalisé). Remplacé par des événements tactiles natifs (touchstart/touchmove/touchend) pour le tactile et souris classique pour l'iMac — même choix que le glisser-déposer des cibles dans Le Déployeur." },
   { version:"V5", date:"21/08/2026", notes:"Arborescence : le double-clic/double-tap pour éditer une personne est remplacé par un appui prolongé (≈550 ms, souris ou tactile) sur la ligne — un mouvement de plus de 12 px pendant l'appui l'annule (pour ne pas gêner le défilement), et la ligne se teinte progressivement pendant l'attente puis flashe brièvement à l'ouverture de la fenêtre, pour bien montrer que l'appui est pris en compte." },
@@ -604,6 +611,7 @@ function redessiner(){
   const racine = donnees.racine;
   const cc = document.createElementNS('http://www.w3.org/2000/svg','circle');
   cc.setAttribute('class','centre-cercle'); cc.setAttribute('cx',0); cc.setAttribute('cy',0); cc.setAttribute('r',rInner0);
+  cc.addEventListener('pointerdown', (e)=>demarrerAppuiLongElement(e, racine, cc));
   gCentre.appendChild(cc);
   const lignesCentre = [];
   lignesCentre.push({t:racine.nom||'—', cls:''});
@@ -631,7 +639,11 @@ function redessiner(){
     path.setAttribute('d', cheminSegment(rInt, rExt, n._a0, n._a1));
     path.setAttribute('fill', n._coul);
     path.dataset.chemin = n._chemin.join('>');
-    path.addEventListener('click', ()=>selectionner(n, path));
+    path.addEventListener('pointerdown', (e)=>demarrerAppuiLongElement(e, n, path));
+    path.addEventListener('click', ()=>{
+      if(dernierAppuiLongDeclenche){ dernierAppuiLongDeclenche = false; return; }
+      selectionner(n, path);
+    });
     gSegments.appendChild(path);
 
     const angMid = (n._a0+n._a1)/2;
@@ -801,6 +813,46 @@ function relacherPointeur(e){
 }
 svg.addEventListener('pointerup', relacherPointeur);
 svg.addEventListener('pointercancel', relacherPointeur);
+
+/* ===================== Appui prolongé sur le graphique en éventail ===================== */
+/* Ouvre la même fenêtre d'édition que dans l'arborescence. S'appuie sur la capture de pointeur
+   déjà en place pour le pan/zoom (svg.setPointerCapture) : après le pointerdown initial sur un
+   segment, tous les événements suivants (move/up/cancel) remontent au niveau du <svg>, donc la
+   détection de déplacement et d'annulation se fait ici plutôt que sur chaque segment. */
+let appuiLongSegment = null;
+let dernierAppuiLongDeclenche = false;
+const DUREE_APPUI_EVENTAIL = 550;
+const SEUIL_DEPLACEMENT_EVENTAIL = 12;
+
+function demarrerAppuiLongElement(e, noeud, elt){
+  if(pointeurs.size>=1) return; // un autre doigt est déjà posé : probablement un pincement, pas un appui
+  annulerAppuiLongElement();
+  elt.classList.add('appui-en-cours');
+  const minuteur = setTimeout(()=>{
+    appuiLongSegment = null;
+    dernierAppuiLongDeclenche = true;
+    elt.classList.remove('appui-en-cours');
+    elt.classList.add('appui-declenche');
+    setTimeout(()=>elt.classList.remove('appui-declenche'), 400);
+    ouvrirEditionPersonne(noeud);
+  }, DUREE_APPUI_EVENTAIL);
+  appuiLongSegment = {noeud, elt, xDepart:e.clientX, yDepart:e.clientY, minuteur};
+}
+function annulerAppuiLongElement(){
+  if(appuiLongSegment){
+    clearTimeout(appuiLongSegment.minuteur);
+    appuiLongSegment.elt.classList.remove('appui-en-cours');
+    appuiLongSegment = null;
+  }
+}
+svg.addEventListener('pointermove', (e)=>{
+  if(!appuiLongSegment) return;
+  const dist = Math.hypot(e.clientX-appuiLongSegment.xDepart, e.clientY-appuiLongSegment.yDepart);
+  if(pointeurs.size>=2 || dist > SEUIL_DEPLACEMENT_EVENTAIL) annulerAppuiLongElement();
+});
+svg.addEventListener('pointerup', annulerAppuiLongElement);
+svg.addEventListener('pointercancel', annulerAppuiLongElement);
+svg.addEventListener('pointerdown', ()=>{ if(pointeurs.size>=2) annulerAppuiLongElement(); });
 
 /* ===================== Recherche ===================== */
 let resultatsRecherche = []; let indexRecherche = -1;
@@ -1105,16 +1157,16 @@ function annulerDerniereAction(){
   marquerModifieArbre();
   redessinerArbre();
   majBoutonUndo();
-  afficherToastArbre('Dernière modification annulée');
+  afficherToast('Dernière modification annulée');
 }
 
-let minuteurToastArbre = null;
-function afficherToastArbre(msg){
-  const t = document.getElementById('toast-arbre');
+let minuteurToast = null;
+function afficherToast(msg){
+  const t = document.getElementById('toast-app');
   t.textContent = msg;
   t.classList.add('visible');
-  clearTimeout(minuteurToastArbre);
-  minuteurToastArbre = setTimeout(()=>t.classList.remove('visible'), 2000);
+  clearTimeout(minuteurToast);
+  minuteurToast = setTimeout(()=>t.classList.remove('visible'), 2000);
 }
 function signalerArrivee(noeud){
   const entreeArrivee = listeLignesArbre.find(en=>en.noeud===noeud);
@@ -1141,7 +1193,7 @@ function brancherAppuiLongLigne(zone, entree){
       zone.classList.remove('appui-en-cours');
       zone.classList.add('appui-declenche');
       setTimeout(()=>zone.classList.remove('appui-declenche'), 400);
-      ouvrirEditionPersonne(entree);
+      ouvrirEditionPersonne(entree.noeud);
     }, DUREE_APPUI);
   }
   function annuler(){
@@ -1249,7 +1301,7 @@ function construireLigneArbre(entree){
     marquerModifieArbre();
     redessinerArbre();
     signalerArrivee(nouveau);
-    afficherToastArbre(`Nouvelle personne ajoutée sous « ${n.nom||'—'} »`);
+    afficherToast(`Nouvelle personne ajoutée sous « ${n.nom||'—'} »`);
   });
   ligne.appendChild(btnAjouter);
 
@@ -1269,7 +1321,7 @@ function construireLigneArbre(entree){
       if(i>=0) entree.parentArr.splice(i,1);
       marquerModifieArbre();
       redessinerArbre();
-      afficherToastArbre(`« ${nomSupprime} » supprimée`);
+      afficherToast(`« ${nomSupprime} » supprimée`);
     });
     ligne.appendChild(btnSupprimer);
   }
@@ -1352,7 +1404,7 @@ function terminerGlisser(){
     marquerModifieArbre();
     redessinerArbre();
     signalerArrivee(entree.noeud);
-    afficherToastArbre(description);
+    afficherToast(description);
   }
   glisseArbre = null;
 }
@@ -1366,11 +1418,13 @@ function annulerGlisser(){
 }
 
 /* ===================== Fenêtre d'édition d'une personne ===================== */
+/* Utilisable depuis l'arborescence ET depuis le graphique en éventail : ouvrirEditionPersonne
+   prend directement le nœud généalogique, pas une ligne d'arborescence. */
 const overlayPersonne = document.getElementById('overlay-personne');
 let entreeEnEdition = null;
-function ouvrirEditionPersonne(entree){
-  entreeEnEdition = entree;
-  const n = entree.noeud, estRacine = (entree.parentArr===null);
+function ouvrirEditionPersonne(noeud){
+  entreeEnEdition = noeud;
+  const n = noeud, estRacine = (n===donnees.racine);
   document.getElementById('titre-personne').textContent = estRacine ? 'Éditer la racine' : 'Éditer cette personne';
   document.getElementById('pers-nom').value = n.nom || '';
   document.getElementById('pers-naissance').value = n.naissance || '';
@@ -1395,8 +1449,9 @@ document.getElementById('fermer-personne').addEventListener('click', fermerEditi
 overlayPersonne.addEventListener('click', (e)=>{ if(e.target===overlayPersonne) fermerEditionPersonne(); });
 document.getElementById('btn-pers-valider').addEventListener('click', ()=>{
   if(!entreeEnEdition) return;
-  pousserUndo(clonerRacine());
-  const n = entreeEnEdition.noeud, estRacine = (entreeEnEdition.parentArr===null);
+  const dansArborescence = overlayArbre.classList.contains('visible');
+  if(dansArborescence) pousserUndo(clonerRacine());
+  const n = entreeEnEdition, estRacine = (n===donnees.racine);
   n.nom = document.getElementById('pers-nom').value.trim();
   n.naissance = document.getElementById('pers-naissance').value.trim();
   n.deces = document.getElementById('pers-deces').value.trim();
@@ -1412,12 +1467,16 @@ document.getElementById('btn-pers-valider').addEventListener('click', ()=>{
   else{ delete n.conjoint; }
   const notesVal = document.getElementById('pers-notes').value.trim();
   if(notesVal) n.notes = notesVal; else delete n.notes;
-  marquerModifieArbre();
   const noeudModifie = n;
   fermerEditionPersonne();
-  redessinerArbre();
-  signalerArrivee(noeudModifie);
-  afficherToastArbre(`« ${noeudModifie.nom||'—'} » mise à jour`);
+  if(dansArborescence){
+    marquerModifieArbre();
+    redessinerArbre();
+    signalerArrivee(noeudModifie);
+  }else{
+    construireLayout(); redessiner(); redessinerLegende();
+  }
+  afficherToast(`« ${noeudModifie.nom||'—'} » mise à jour`);
 });
 
 const overlayArbre = document.getElementById('overlay-arbre');
