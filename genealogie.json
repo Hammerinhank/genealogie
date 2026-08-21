@@ -751,8 +751,8 @@
                         "nom": "Henri TAVERNIER",
                         "naissance": "11/09/1954",
                         "conjoint": {
-                          "nom": "Thierry GASIGLIA",
-                          "naissance": "18/02/1956"
+                          "nom": "Sophie Vulliet",
+                          "naissance": "1/12/1956"
                         },
                         "enfants": [
                           {
@@ -776,7 +776,8 @@
                               "nom": "Chi phan"
                             }
                           }
-                        ]
+                        ],
+                        "deces": ""
                       }
                     ]
                   }
