@@ -150,7 +150,8 @@
 
   /* ---- Arborescence éditable (page plein écran) ---- */
   .overlay.plein{align-items:stretch;justify-content:stretch;padding:0;}
-  .page-arbre{background:var(--parchemin);color:var(--sepia);width:100%;height:100%;display:flex;flex-direction:column;}
+  .page-arbre{background:var(--parchemin);color:var(--sepia);width:100%;height:100%;display:flex;flex-direction:column;
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
   .entete-arbre{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;border-bottom:1px solid var(--parchemin-ombre);
     flex-wrap:wrap;background:var(--parchemin);}
   .entete-arbre h2{margin:0;font-family:'Fraunces',serif;font-size:1.02rem;flex:0 0 auto;}
@@ -162,12 +163,14 @@
   .ligne-arbre.racine{background:var(--parchemin-ombre);}
   .ligne-arbre .poignee{cursor:grab;color:var(--sepia-att);touch-action:none;padding:.1rem .3rem;
     user-select:none;flex:0 0 auto;font-size:1rem;}
-  .ligne-arbre input.nom{flex:1 1 auto;min-width:4.5rem;border:1px solid transparent;background:transparent;
-    font-size:.85rem;color:var(--sepia);padding:.2rem .3rem;border-radius:4px;font-family:inherit;}
-  .ligne-arbre.racine input.nom{font-weight:600;}
-  .ligne-arbre input.date{width:4.2rem;flex:0 0 auto;border:1px solid transparent;background:transparent;
-    font-size:.7rem;color:var(--sepia-att);padding:.2rem .2rem;border-radius:4px;font-family:'JetBrains Mono',monospace;}
-  .ligne-arbre input:focus{border-color:var(--laiton);background:#fffdf7;outline:none;}
+  .ligne-arbre .zone-info{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:.45rem;
+    padding:.28rem .35rem;border-radius:4px;cursor:pointer;overflow:hidden;touch-action:manipulation;}
+  .ligne-arbre .zone-info:active{background:rgba(182,144,90,.22);}
+  .ligne-arbre .ligne-nom{font-size:.85rem;color:var(--sepia);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ligne-arbre.racine .ligne-nom{font-weight:600;}
+  .ligne-arbre .ligne-dates{font-size:.7rem;color:var(--sepia-att);font-family:'JetBrains Mono',monospace;
+    white-space:nowrap;flex:0 0 auto;}
+  .ligne-arbre .ligne-conjoint{font-size:.82rem;color:var(--laiton);flex:0 0 auto;}
   .ligne-arbre .action{background:none;border:none;color:var(--sepia-att);cursor:pointer;font-size:.95rem;
     padding:.15rem .3rem;flex:0 0 auto;}
   .ligne-arbre .action.supprimer{color:var(--danger);}
@@ -212,7 +215,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V3</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V4</button>
   </header>
 
   <div class="barre-outils">
@@ -365,6 +368,52 @@
   </div>
 </div>
 
+<!-- Modale : éditer une personne (ouverte par double-clic/double-tap dans l'arborescence) -->
+<div class="overlay" id="overlay-personne">
+  <div class="carte-modale">
+    <button class="fermer" id="fermer-personne">✕</button>
+    <h2 id="titre-personne">Éditer cette personne</h2>
+    <div class="grp-vert">
+      <label>Nom
+        <input class="champ-clair" id="pers-nom" placeholder="Nom">
+      </label>
+      <div style="display:flex;gap:.5rem;">
+        <label style="flex:1;">Naissance
+          <input class="champ-clair" id="pers-naissance" placeholder="ex. 1846">
+        </label>
+        <label style="flex:1;">Décès
+          <input class="champ-clair" id="pers-deces" placeholder="ex. 1927">
+        </label>
+      </div>
+      <label id="grp-pers-id">Identifiant de branche (optionnel)
+        <input class="champ-clair" id="pers-id" placeholder="ex. A.1">
+      </label>
+      <div class="aide-format" style="margin:.3rem 0 -.2rem;font-weight:600;">Conjoint</div>
+      <label>Nom du conjoint
+        <input class="champ-clair" id="pers-conj-nom" placeholder="Nom du conjoint">
+      </label>
+      <div style="display:flex;gap:.5rem;">
+        <label style="flex:1;">Naissance
+          <input class="champ-clair" id="pers-conj-naissance" placeholder="ex. 1850">
+        </label>
+        <label style="flex:1;">Décès
+          <input class="champ-clair" id="pers-conj-deces" placeholder="ex. 1920">
+        </label>
+      </div>
+      <label>Mariage
+        <input class="champ-clair" id="pers-conj-mariage" placeholder="ex. 1870">
+      </label>
+      <label>Notes
+        <textarea class="champ-clair" id="pers-notes" rows="2" style="resize:vertical;"></textarea>
+      </label>
+    </div>
+    <div class="actions-modale">
+      <button class="btn accent" id="btn-pers-valider">Valider</button>
+      <button class="btn" id="btn-pers-annuler">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- Page plein écran : arborescence éditable -->
 <div class="overlay plein" id="overlay-arbre">
   <div class="page-arbre">
@@ -386,8 +435,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V3";
+const VERSION = "V4";
 const HISTORIQUE_VERSIONS = [
+  { version:"V4", date:"21/08/2026", notes:"Arborescence : le texte n'est plus sélectionnable (survolait le glisser-déposer) et les champs ne sont plus modifiables directement dans la liste. Un double-clic (souris) ou un double-tap (tactile, détecté à la main pour fiabilité sur Safari iOS) sur une personne ouvre désormais une fenêtre d'édition complète — nom, naissance, décès, identifiant de branche, conjoint (nom/naissance/décès/mariage) et notes — avec deux boutons Valider / Annuler ; Valider s'intègre à l'historique d'annulation (↶) comme les autres opérations." },
   { version:"V3", date:"21/08/2026", notes:"Arborescence éditable : ajout d'un « Annuler » (↶, aussi Ctrl/Cmd+Z) qui revient pas à pas sur les dernières opérations (déplacement, suppression, création, modification de nom/date), désactivé quand il n'y a plus rien à annuler. Retour visuel du glisser-déposer largement renforcé : la ligne saisie se distingue nettement (hachures + liseré doré) dès qu'on pose le doigt/la souris sur sa poignée, les zones d'atterrissage potentielles se surlignent clairement au survol (trait doré lumineux avant/après, fond pointillé pour « devient enfant de »), et à la dépose la ligne arrivée à destination est mise en évidence par un flash doré de 1,8 s avec défilement automatique jusqu'à elle, accompagné d'un message temporaire précisant ce qui a été déplacé et où." },
   { version:"V2", date:"21/08/2026", notes:"Ajout de la synchronisation GitHub d'un fichier genealogie.json (propriétaire modifiable, par défaut Hammerinhank ; dépôt par défaut genealogie ; jeton PAT en localStorage ; création automatique du dépôt s'il n'existe pas ; chargement et enregistrement manuels). Ajout d'une arborescence généalogique éditable en plein écran : réorganisation par glisser-déposer d'une feuille ou d'une branche entière (souris et tactile, poignée dédiée), suppression avec confirmation intégrée, création de nouvelles personnes, édition directe du nom et des dates. Bandeau « non enregistré » tant que l'arborescence reste ouverte ; à la fermeture, enregistrement automatique sur GitHub si un jeton est configuré (sinon rappel d'exporter le JSON) ; avertissement navigateur si on quitte la page avec des modifications en attente. Correction : les champs internes de mise en page (angles, profondeur…) ne sont plus inclus dans les fichiers exportés ou envoyés à GitHub." },
   { version:"V1", date:"20/08/2026", notes:"Version initiale : rendu en éventail (arc de cercle, générations concentriques), largeur de branche proportionnelle au nombre de descendants, couleurs par branche, étiquettes radiales avec bascule de lisibilité, panneau de détail au clic, recherche de nom, zoom/déplacement souris + tactile (molette, glisser, pincement), limitation de profondeur affichée, réglage de l'épaisseur des anneaux, import/export/édition JSON, données d'exemple." }
@@ -1066,14 +1116,21 @@ function signalerArrivee(noeud){
   }
 }
 
-/* champ éditable : capture un instantané au focus, ne l'empile que si la valeur a vraiment changé au blur */
-function brancherChampEditable(input, appliquer){
-  let valeurDepart = null, snapshotDepart = null;
-  input.addEventListener('focus', ()=>{ valeurDepart = input.value; snapshotDepart = clonerRacine(); });
-  input.addEventListener('input', ()=>{ appliquer(input.value); marquerModifieArbre(); });
-  input.addEventListener('blur', ()=>{
-    if(snapshotDepart && input.value!==valeurDepart) pousserUndo(snapshotDepart);
-    snapshotDepart = null;
+/* double-clic (souris) / double-tap (tactile) sur une ligne : ouvre la fenêtre d'édition complète */
+function brancherDoubleClicLigne(zone, entree){
+  zone.addEventListener('dblclick', (e)=>{ e.preventDefault(); ouvrirEditionPersonne(entree); });
+  let dernierTapTemps = 0, dernierTapX = 0, dernierTapY = 0;
+  zone.addEventListener('pointerup', (e)=>{
+    if(e.pointerType!=='touch') return;
+    const maintenant = Date.now();
+    const dist = Math.hypot(e.clientX-dernierTapX, e.clientY-dernierTapY);
+    if(maintenant-dernierTapTemps < 350 && dist < 30){
+      e.preventDefault();
+      ouvrirEditionPersonne(entree);
+      dernierTapTemps = 0;
+    }else{
+      dernierTapTemps = maintenant; dernierTapX = e.clientX; dernierTapY = e.clientY;
+    }
   });
 }
 
@@ -1118,20 +1175,29 @@ function construireLigneArbre(entree){
     ligne.appendChild(esp);
   }
 
-  const champNom = document.createElement('input');
-  champNom.className = 'nom'; champNom.value = n.nom||''; champNom.placeholder = 'Nom';
-  brancherChampEditable(champNom, v=>{ n.nom = v; });
-  ligne.appendChild(champNom);
-
-  const champNaiss = document.createElement('input');
-  champNaiss.className = 'date'; champNaiss.value = n.naissance||''; champNaiss.placeholder = 'naissance';
-  brancherChampEditable(champNaiss, v=>{ n.naissance = v; });
-  ligne.appendChild(champNaiss);
-
-  const champDeces = document.createElement('input');
-  champDeces.className = 'date'; champDeces.value = n.deces||''; champDeces.placeholder = 'décès';
-  brancherChampEditable(champDeces, v=>{ n.deces = v; });
-  ligne.appendChild(champDeces);
+  const zoneInfo = document.createElement('div');
+  zoneInfo.className = 'zone-info';
+  zoneInfo.title = 'Double-clique (ou double-tape) pour éditer';
+  const spanNom = document.createElement('span');
+  spanNom.className = 'ligne-nom';
+  spanNom.textContent = n.nom || '(sans nom)';
+  zoneInfo.appendChild(spanNom);
+  const bribeDates = formatDates(n);
+  if(bribeDates){
+    const spanDates = document.createElement('span');
+    spanDates.className = 'ligne-dates';
+    spanDates.textContent = bribeDates;
+    zoneInfo.appendChild(spanDates);
+  }
+  if(n.conjoint && n.conjoint.nom){
+    const spanConj = document.createElement('span');
+    spanConj.className = 'ligne-conjoint';
+    spanConj.textContent = '⚭';
+    spanConj.title = 'Conjoint : '+n.conjoint.nom;
+    zoneInfo.appendChild(spanConj);
+  }
+  brancherDoubleClicLigne(zoneInfo, entree);
+  ligne.appendChild(zoneInfo);
 
   const btnAjouter = document.createElement('button');
   btnAjouter.className = 'action'; btnAjouter.textContent = '➕'; btnAjouter.title = 'Ajouter un enfant';
@@ -1258,6 +1324,61 @@ function annulerGlisser(){
   retirerEcouteursGlisser();
   glisseArbre = null;
 }
+
+/* ===================== Fenêtre d'édition d'une personne ===================== */
+const overlayPersonne = document.getElementById('overlay-personne');
+let entreeEnEdition = null;
+function ouvrirEditionPersonne(entree){
+  entreeEnEdition = entree;
+  const n = entree.noeud, estRacine = (entree.parentArr===null);
+  document.getElementById('titre-personne').textContent = estRacine ? 'Éditer la racine' : 'Éditer cette personne';
+  document.getElementById('pers-nom').value = n.nom || '';
+  document.getElementById('pers-naissance').value = n.naissance || '';
+  document.getElementById('pers-deces').value = n.deces || '';
+  document.getElementById('grp-pers-id').style.display = estRacine ? 'none' : '';
+  document.getElementById('pers-id').value = n.id || '';
+  const c = n.conjoint || {};
+  document.getElementById('pers-conj-nom').value = c.nom || '';
+  document.getElementById('pers-conj-naissance').value = c.naissance || '';
+  document.getElementById('pers-conj-deces').value = c.deces || '';
+  document.getElementById('pers-conj-mariage').value = c.mariage || '';
+  document.getElementById('pers-notes').value = n.notes || '';
+  overlayPersonne.classList.add('visible');
+  setTimeout(()=>document.getElementById('pers-nom').focus(), 60);
+}
+function fermerEditionPersonne(){
+  overlayPersonne.classList.remove('visible');
+  entreeEnEdition = null;
+}
+document.getElementById('btn-pers-annuler').addEventListener('click', fermerEditionPersonne);
+document.getElementById('fermer-personne').addEventListener('click', fermerEditionPersonne);
+overlayPersonne.addEventListener('click', (e)=>{ if(e.target===overlayPersonne) fermerEditionPersonne(); });
+document.getElementById('btn-pers-valider').addEventListener('click', ()=>{
+  if(!entreeEnEdition) return;
+  pousserUndo(clonerRacine());
+  const n = entreeEnEdition.noeud, estRacine = (entreeEnEdition.parentArr===null);
+  n.nom = document.getElementById('pers-nom').value.trim();
+  n.naissance = document.getElementById('pers-naissance').value.trim();
+  n.deces = document.getElementById('pers-deces').value.trim();
+  if(!estRacine){
+    const idVal = document.getElementById('pers-id').value.trim();
+    if(idVal) n.id = idVal; else delete n.id;
+  }
+  const cn = document.getElementById('pers-conj-nom').value.trim();
+  const cna = document.getElementById('pers-conj-naissance').value.trim();
+  const cd = document.getElementById('pers-conj-deces').value.trim();
+  const cm = document.getElementById('pers-conj-mariage').value.trim();
+  if(cn||cna||cd||cm){ n.conjoint = {}; if(cn)n.conjoint.nom=cn; if(cna)n.conjoint.naissance=cna; if(cd)n.conjoint.deces=cd; if(cm)n.conjoint.mariage=cm; }
+  else{ delete n.conjoint; }
+  const notesVal = document.getElementById('pers-notes').value.trim();
+  if(notesVal) n.notes = notesVal; else delete n.notes;
+  marquerModifieArbre();
+  const noeudModifie = n;
+  fermerEditionPersonne();
+  redessinerArbre();
+  signalerArrivee(noeudModifie);
+  afficherToastArbre(`« ${noeudModifie.nom||'—'} » mise à jour`);
+});
 
 const overlayArbre = document.getElementById('overlay-arbre');
 function gardeAvantFermeture(e){ if(arbreModifie){ e.preventDefault(); e.returnValue=''; } }
