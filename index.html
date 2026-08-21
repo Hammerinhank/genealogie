@@ -149,7 +149,11 @@
   }
 
   /* ---- Arborescence éditable (page plein écran) ---- */
-  .overlay.plein{align-items:stretch;justify-content:stretch;padding:0;}
+  /* z-index volontairement plus bas que les modales génériques (.overlay = 50) : les fenêtres
+     ouvertes depuis l'arborescence (confirmation, édition d'une personne) doivent apparaître
+     au-dessus d'elle même si elle reste ouverte en arrière-plan. */
+  .overlay.plein{align-items:stretch;justify-content:stretch;padding:0;z-index:40;}
+  #overlay-confirm, #overlay-personne{z-index:90;}
   .page-arbre{background:var(--parchemin);color:var(--sepia);width:100%;height:100%;display:flex;flex-direction:column;
     user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
   .entete-arbre{display:flex;align-items:center;gap:.6rem;padding:.6rem .8rem;border-bottom:1px solid var(--parchemin-ombre);
@@ -217,7 +221,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V6</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V7</button>
   </header>
 
   <div class="barre-outils">
@@ -437,8 +441,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V6";
+const VERSION = "V7";
 const HISTORIQUE_VERSIONS = [
+  { version:"V7", date:"21/08/2026", notes:"Correction du vrai problème derrière « l'appui long ne fait rien » : la fenêtre d'édition d'une personne (et la confirmation de suppression) s'ouvraient bien, mais restaient cachées sous la page plein écran de l'arborescence, qui partageait le même niveau d'empilement (z-index) et venait après elles dans la page — elles n'apparaissaient qu'une fois l'arborescence refermée. La page arborescence a maintenant un niveau plus bas que ces fenêtres, qui s'affichent donc correctement par-dessus. (Le changement Pointer Events → événements tactiles natifs de la V6 était inutile pour ce bug précis mais reste en place, sans effet négatif.)" },
   { version:"V6", date:"21/08/2026", notes:"Correction : l'appui prolongé pour éditer une personne ne se déclenchait pas sur iPhone (Safari iOS gère mal les Pointer Events pour ce type de geste personnalisé). Remplacé par des événements tactiles natifs (touchstart/touchmove/touchend) pour le tactile et souris classique pour l'iMac — même choix que le glisser-déposer des cibles dans Le Déployeur." },
   { version:"V5", date:"21/08/2026", notes:"Arborescence : le double-clic/double-tap pour éditer une personne est remplacé par un appui prolongé (≈550 ms, souris ou tactile) sur la ligne — un mouvement de plus de 12 px pendant l'appui l'annule (pour ne pas gêner le défilement), et la ligne se teinte progressivement pendant l'attente puis flashe brièvement à l'ouverture de la fenêtre, pour bien montrer que l'appui est pris en compte." },
   { version:"V4", date:"21/08/2026", notes:"Arborescence : le texte n'est plus sélectionnable (survolait le glisser-déposer) et les champs ne sont plus modifiables directement dans la liste. Un double-clic (souris) ou un double-tap (tactile, détecté à la main pour fiabilité sur Safari iOS) sur une personne ouvre désormais une fenêtre d'édition complète — nom, naissance, décès, identifiant de branche, conjoint (nom/naissance/décès/mariage) et notes — avec deux boutons Valider / Annuler ; Valider s'intègre à l'historique d'annulation (↶) comme les autres opérations." },
