@@ -166,6 +166,8 @@
   .ligne-arbre .zone-info{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:.45rem;
     padding:.28rem .35rem;border-radius:4px;cursor:pointer;overflow:hidden;touch-action:manipulation;}
   .ligne-arbre .zone-info:active{background:rgba(182,144,90,.22);}
+  .ligne-arbre .zone-info.appui-en-cours{background:var(--laiton-clair);transition:background-color 550ms linear;}
+  .ligne-arbre .zone-info.appui-declenche{background:var(--laiton);transition:background-color .15s;}
   .ligne-arbre .ligne-nom{font-size:.85rem;color:var(--sepia);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .ligne-arbre.racine .ligne-nom{font-weight:600;}
   .ligne-arbre .ligne-dates{font-size:.7rem;color:var(--sepia-att);font-family:'JetBrains Mono',monospace;
@@ -215,7 +217,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V4</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V5</button>
   </header>
 
   <div class="barre-outils">
@@ -368,7 +370,7 @@
   </div>
 </div>
 
-<!-- Modale : éditer une personne (ouverte par double-clic/double-tap dans l'arborescence) -->
+<!-- Modale : éditer une personne (ouverte par appui prolongé dans l'arborescence) -->
 <div class="overlay" id="overlay-personne">
   <div class="carte-modale">
     <button class="fermer" id="fermer-personne">✕</button>
@@ -435,8 +437,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V4";
+const VERSION = "V5";
 const HISTORIQUE_VERSIONS = [
+  { version:"V5", date:"21/08/2026", notes:"Arborescence : le double-clic/double-tap pour éditer une personne est remplacé par un appui prolongé (≈550 ms, souris ou tactile) sur la ligne — un mouvement de plus de 12 px pendant l'appui l'annule (pour ne pas gêner le défilement), et la ligne se teinte progressivement pendant l'attente puis flashe brièvement à l'ouverture de la fenêtre, pour bien montrer que l'appui est pris en compte." },
   { version:"V4", date:"21/08/2026", notes:"Arborescence : le texte n'est plus sélectionnable (survolait le glisser-déposer) et les champs ne sont plus modifiables directement dans la liste. Un double-clic (souris) ou un double-tap (tactile, détecté à la main pour fiabilité sur Safari iOS) sur une personne ouvre désormais une fenêtre d'édition complète — nom, naissance, décès, identifiant de branche, conjoint (nom/naissance/décès/mariage) et notes — avec deux boutons Valider / Annuler ; Valider s'intègre à l'historique d'annulation (↶) comme les autres opérations." },
   { version:"V3", date:"21/08/2026", notes:"Arborescence éditable : ajout d'un « Annuler » (↶, aussi Ctrl/Cmd+Z) qui revient pas à pas sur les dernières opérations (déplacement, suppression, création, modification de nom/date), désactivé quand il n'y a plus rien à annuler. Retour visuel du glisser-déposer largement renforcé : la ligne saisie se distingue nettement (hachures + liseré doré) dès qu'on pose le doigt/la souris sur sa poignée, les zones d'atterrissage potentielles se surlignent clairement au survol (trait doré lumineux avant/après, fond pointillé pour « devient enfant de »), et à la dépose la ligne arrivée à destination est mise en évidence par un flash doré de 1,8 s avec défilement automatique jusqu'à elle, accompagné d'un message temporaire précisant ce qui a été déplacé et où." },
   { version:"V2", date:"21/08/2026", notes:"Ajout de la synchronisation GitHub d'un fichier genealogie.json (propriétaire modifiable, par défaut Hammerinhank ; dépôt par défaut genealogie ; jeton PAT en localStorage ; création automatique du dépôt s'il n'existe pas ; chargement et enregistrement manuels). Ajout d'une arborescence généalogique éditable en plein écran : réorganisation par glisser-déposer d'une feuille ou d'une branche entière (souris et tactile, poignée dédiée), suppression avec confirmation intégrée, création de nouvelles personnes, édition directe du nom et des dates. Bandeau « non enregistré » tant que l'arborescence reste ouverte ; à la fermeture, enregistrement automatique sur GitHub si un jeton est configuré (sinon rappel d'exporter le JSON) ; avertissement navigateur si on quitte la page avec des modifications en attente. Correction : les champs internes de mise en page (angles, profondeur…) ne sont plus inclus dans les fichiers exportés ou envoyés à GitHub." },
@@ -1116,22 +1119,37 @@ function signalerArrivee(noeud){
   }
 }
 
-/* double-clic (souris) / double-tap (tactile) sur une ligne : ouvre la fenêtre d'édition complète */
-function brancherDoubleClicLigne(zone, entree){
-  zone.addEventListener('dblclick', (e)=>{ e.preventDefault(); ouvrirEditionPersonne(entree); });
-  let dernierTapTemps = 0, dernierTapX = 0, dernierTapY = 0;
-  zone.addEventListener('pointerup', (e)=>{
-    if(e.pointerType!=='touch') return;
-    const maintenant = Date.now();
-    const dist = Math.hypot(e.clientX-dernierTapX, e.clientY-dernierTapY);
-    if(maintenant-dernierTapTemps < 350 && dist < 30){
-      e.preventDefault();
+/* appui prolongé (souris ou tactile) sur une ligne : ouvre la fenêtre d'édition complète */
+function brancherAppuiLongLigne(zone, entree){
+  const DUREE_APPUI = 550;       // ms à tenir l'appui
+  const SEUIL_DEPLACEMENT = 12;  // px : au-delà, on considère que c'est un défilement, pas un appui
+  let minuteur = null, xDepart = 0, yDepart = 0;
+
+  function demarrer(e){
+    if(e.pointerType==='mouse' && e.button!==0) return;
+    xDepart = e.clientX; yDepart = e.clientY;
+    zone.classList.add('appui-en-cours');
+    minuteur = setTimeout(()=>{
+      minuteur = null;
+      zone.classList.remove('appui-en-cours');
+      zone.classList.add('appui-declenche');
+      setTimeout(()=>zone.classList.remove('appui-declenche'), 400);
       ouvrirEditionPersonne(entree);
-      dernierTapTemps = 0;
-    }else{
-      dernierTapTemps = maintenant; dernierTapX = e.clientX; dernierTapY = e.clientY;
-    }
-  });
+    }, DUREE_APPUI);
+  }
+  function annuler(){
+    if(minuteur){ clearTimeout(minuteur); minuteur = null; }
+    zone.classList.remove('appui-en-cours');
+  }
+  function deplacer(e){
+    if(minuteur && Math.hypot(e.clientX-xDepart, e.clientY-yDepart) > SEUIL_DEPLACEMENT) annuler();
+  }
+  zone.addEventListener('pointerdown', demarrer);
+  zone.addEventListener('pointermove', deplacer);
+  zone.addEventListener('pointerup', annuler);
+  zone.addEventListener('pointerleave', annuler);
+  zone.addEventListener('pointercancel', annuler);
+  zone.addEventListener('contextmenu', (e)=>e.preventDefault());
 }
 
 function construireListeArbre(){
@@ -1177,7 +1195,7 @@ function construireLigneArbre(entree){
 
   const zoneInfo = document.createElement('div');
   zoneInfo.className = 'zone-info';
-  zoneInfo.title = 'Double-clique (ou double-tape) pour éditer';
+  zoneInfo.title = 'Appui prolongé pour éditer';
   const spanNom = document.createElement('span');
   spanNom.className = 'ligne-nom';
   spanNom.textContent = n.nom || '(sans nom)';
@@ -1196,7 +1214,7 @@ function construireLigneArbre(entree){
     spanConj.title = 'Conjoint : '+n.conjoint.nom;
     zoneInfo.appendChild(spanConj);
   }
-  brancherDoubleClicLigne(zoneInfo, entree);
+  brancherAppuiLongLigne(zoneInfo, entree);
   ligne.appendChild(zoneInfo);
 
   const btnAjouter = document.createElement('button');
