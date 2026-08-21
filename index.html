@@ -171,13 +171,37 @@
   .ligne-arbre .action{background:none;border:none;color:var(--sepia-att);cursor:pointer;font-size:.95rem;
     padding:.15rem .3rem;flex:0 0 auto;}
   .ligne-arbre .action.supprimer{color:var(--danger);}
-  .ligne-arbre.glissee{opacity:.35;}
-  .ligne-arbre.cible-avant{box-shadow:inset 0 3px 0 var(--laiton);}
-  .ligne-arbre.cible-apres{box-shadow:inset 0 -3px 0 var(--laiton);}
-  .ligne-arbre.cible-enfant{background:var(--laiton-clair);}
-  .fantome-drag{position:fixed;z-index:200;pointer-events:none;background:var(--parchemin);border:1px solid var(--laiton);
-    border-radius:6px;padding:.3rem .6rem;font-size:.8rem;color:var(--sepia);box-shadow:0 6px 18px rgba(0,0,0,.35);
-    max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ligne-arbre.glissee{
+    opacity:.5; border-radius:6px;
+    background:repeating-linear-gradient(45deg, rgba(182,144,90,.22), rgba(182,144,90,.22) 7px, transparent 7px, transparent 14px);
+    box-shadow:inset 0 0 0 2px var(--laiton);
+  }
+  .ligne-arbre.cible-avant::before{
+    content:''; position:absolute; left:2px; right:2px; top:-3px; height:4px; border-radius:3px;
+    background:var(--laiton); box-shadow:0 0 8px 1px var(--laiton);
+  }
+  .ligne-arbre.cible-apres::after{
+    content:''; position:absolute; left:2px; right:2px; bottom:-3px; height:4px; border-radius:3px;
+    background:var(--laiton); box-shadow:0 0 8px 1px var(--laiton);
+  }
+  .ligne-arbre.cible-enfant{
+    background:var(--laiton-clair); outline:2px dashed var(--laiton); outline-offset:-2px;
+  }
+  @keyframes arbre-flash-arrivee{
+    0%{ background:var(--laiton); }
+    100%{ background:transparent; }
+  }
+  .ligne-arbre.vient-d-arriver{ animation:arbre-flash-arrivee 1.8s ease-out; }
+  .fantome-drag{position:fixed;z-index:200;pointer-events:none;background:var(--parchemin);border:2px solid var(--laiton);
+    border-radius:6px;padding:.3rem .6rem;font-size:.8rem;color:var(--sepia);box-shadow:0 8px 22px rgba(0,0,0,.4);
+    max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform:rotate(-2deg) scale(1.04);}
+  #toast-arbre{
+    position:fixed; left:50%; top:4.3rem; transform:translateX(-50%); z-index:120;
+    background:var(--sepia); color:var(--parchemin); font-size:.78rem; padding:.5rem .95rem;
+    border-radius:999px; box-shadow:0 8px 20px rgba(0,0,0,.4); opacity:0; pointer-events:none;
+    transition:opacity .25s; max-width:82vw; text-align:center;
+  }
+  #toast-arbre.visible{opacity:1;}
 </style>
 </head>
 <body>
@@ -188,7 +212,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V2</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V3</button>
   </header>
 
   <div class="barre-outils">
@@ -349,9 +373,11 @@
       <div class="banniere-non-enregistre" id="banniere-arbre" style="display:none;">
         ⚠ Modifications non enregistrées — seront enregistrées à la fermeture de cette page
       </div>
+      <button class="btn" id="btn-undo-arbre" disabled>↶ Annuler</button>
       <button class="btn accent" id="btn-fermer-arbre">Fermer et enregistrer</button>
     </div>
     <div class="corps-arbre" id="corps-arbre"></div>
+    <div id="toast-arbre"></div>
   </div>
 </div>
 
@@ -360,8 +386,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V2";
+const VERSION = "V3";
 const HISTORIQUE_VERSIONS = [
+  { version:"V3", date:"21/08/2026", notes:"Arborescence éditable : ajout d'un « Annuler » (↶, aussi Ctrl/Cmd+Z) qui revient pas à pas sur les dernières opérations (déplacement, suppression, création, modification de nom/date), désactivé quand il n'y a plus rien à annuler. Retour visuel du glisser-déposer largement renforcé : la ligne saisie se distingue nettement (hachures + liseré doré) dès qu'on pose le doigt/la souris sur sa poignée, les zones d'atterrissage potentielles se surlignent clairement au survol (trait doré lumineux avant/après, fond pointillé pour « devient enfant de »), et à la dépose la ligne arrivée à destination est mise en évidence par un flash doré de 1,8 s avec défilement automatique jusqu'à elle, accompagné d'un message temporaire précisant ce qui a été déplacé et où." },
   { version:"V2", date:"21/08/2026", notes:"Ajout de la synchronisation GitHub d'un fichier genealogie.json (propriétaire modifiable, par défaut Hammerinhank ; dépôt par défaut genealogie ; jeton PAT en localStorage ; création automatique du dépôt s'il n'existe pas ; chargement et enregistrement manuels). Ajout d'une arborescence généalogique éditable en plein écran : réorganisation par glisser-déposer d'une feuille ou d'une branche entière (souris et tactile, poignée dédiée), suppression avec confirmation intégrée, création de nouvelles personnes, édition directe du nom et des dates. Bandeau « non enregistré » tant que l'arborescence reste ouverte ; à la fermeture, enregistrement automatique sur GitHub si un jeton est configuré (sinon rappel d'exporter le JSON) ; avertissement navigateur si on quitte la page avec des modifications en attente. Correction : les champs internes de mise en page (angles, profondeur…) ne sont plus inclus dans les fichiers exportés ou envoyés à GitHub." },
   { version:"V1", date:"20/08/2026", notes:"Version initiale : rendu en éventail (arc de cercle, générations concentriques), largeur de branche proportionnelle au nombre de descendants, couleurs par branche, étiquettes radiales avec bascule de lisibilité, panneau de détail au clic, recherche de nom, zoom/déplacement souris + tactile (molette, glisser, pincement), limitation de profondeur affichée, réglage de l'épaisseur des anneaux, import/export/édition JSON, données d'exemple." }
 ];
@@ -999,6 +1026,56 @@ document.getElementById('btn-gh-sauver').addEventListener('click', async ()=>{
 let arbreModifie = false;
 let listeLignesArbre = [];
 let glisseArbre = null;
+let pileUndo = [];
+const PILE_UNDO_MAX = 60;
+
+function clonerRacine(){
+  return JSON.parse(JSON.stringify(nettoyerPourExport(donnees))).racine;
+}
+function pousserUndo(snapshot){
+  pileUndo.push(snapshot);
+  if(pileUndo.length > PILE_UNDO_MAX) pileUndo.shift();
+  majBoutonUndo();
+}
+function majBoutonUndo(){
+  document.getElementById('btn-undo-arbre').disabled = (pileUndo.length===0);
+}
+function annulerDerniereAction(){
+  if(!pileUndo.length) return;
+  donnees.racine = pileUndo.pop();
+  marquerModifieArbre();
+  redessinerArbre();
+  majBoutonUndo();
+  afficherToastArbre('Dernière modification annulée');
+}
+
+let minuteurToastArbre = null;
+function afficherToastArbre(msg){
+  const t = document.getElementById('toast-arbre');
+  t.textContent = msg;
+  t.classList.add('visible');
+  clearTimeout(minuteurToastArbre);
+  minuteurToastArbre = setTimeout(()=>t.classList.remove('visible'), 2000);
+}
+function signalerArrivee(noeud){
+  const entreeArrivee = listeLignesArbre.find(en=>en.noeud===noeud);
+  if(entreeArrivee && entreeArrivee.elt){
+    entreeArrivee.elt.classList.add('vient-d-arriver');
+    entreeArrivee.elt.scrollIntoView({behavior:'smooth', block:'center'});
+    setTimeout(()=>{ if(entreeArrivee.elt) entreeArrivee.elt.classList.remove('vient-d-arriver'); }, 1900);
+  }
+}
+
+/* champ éditable : capture un instantané au focus, ne l'empile que si la valeur a vraiment changé au blur */
+function brancherChampEditable(input, appliquer){
+  let valeurDepart = null, snapshotDepart = null;
+  input.addEventListener('focus', ()=>{ valeurDepart = input.value; snapshotDepart = clonerRacine(); });
+  input.addEventListener('input', ()=>{ appliquer(input.value); marquerModifieArbre(); });
+  input.addEventListener('blur', ()=>{
+    if(snapshotDepart && input.value!==valeurDepart) pousserUndo(snapshotDepart);
+    snapshotDepart = null;
+  });
+}
 
 function construireListeArbre(){
   listeLignesArbre = [];
@@ -1043,26 +1120,30 @@ function construireLigneArbre(entree){
 
   const champNom = document.createElement('input');
   champNom.className = 'nom'; champNom.value = n.nom||''; champNom.placeholder = 'Nom';
-  champNom.addEventListener('input', ()=>{ n.nom = champNom.value; marquerModifieArbre(); });
+  brancherChampEditable(champNom, v=>{ n.nom = v; });
   ligne.appendChild(champNom);
 
   const champNaiss = document.createElement('input');
   champNaiss.className = 'date'; champNaiss.value = n.naissance||''; champNaiss.placeholder = 'naissance';
-  champNaiss.addEventListener('input', ()=>{ n.naissance = champNaiss.value; marquerModifieArbre(); });
+  brancherChampEditable(champNaiss, v=>{ n.naissance = v; });
   ligne.appendChild(champNaiss);
 
   const champDeces = document.createElement('input');
   champDeces.className = 'date'; champDeces.value = n.deces||''; champDeces.placeholder = 'décès';
-  champDeces.addEventListener('input', ()=>{ n.deces = champDeces.value; marquerModifieArbre(); });
+  brancherChampEditable(champDeces, v=>{ n.deces = v; });
   ligne.appendChild(champDeces);
 
   const btnAjouter = document.createElement('button');
   btnAjouter.className = 'action'; btnAjouter.textContent = '➕'; btnAjouter.title = 'Ajouter un enfant';
   btnAjouter.addEventListener('click', ()=>{
+    pousserUndo(clonerRacine());
     if(!n.enfants) n.enfants = [];
-    n.enfants.push({nom:'Nouvelle personne', naissance:'', enfants:[]});
+    const nouveau = {nom:'Nouvelle personne', naissance:'', enfants:[]};
+    n.enfants.push(nouveau);
     marquerModifieArbre();
     redessinerArbre();
+    signalerArrivee(nouveau);
+    afficherToastArbre(`Nouvelle personne ajoutée sous « ${n.nom||'—'} »`);
   });
   ligne.appendChild(btnAjouter);
 
@@ -1076,10 +1157,13 @@ function construireLigneArbre(entree){
         : `Supprimer « ${n.nom||'—'} » ?`;
       const ok = await demanderConfirmation('Supprimer cette personne', msg);
       if(!ok) return;
+      pousserUndo(clonerRacine());
+      const nomSupprime = n.nom||'—';
       const i = entree.parentArr.indexOf(n);
       if(i>=0) entree.parentArr.splice(i,1);
       marquerModifieArbre();
       redessinerArbre();
+      afficherToastArbre(`« ${nomSupprime} » supprimée`);
     });
     ligne.appendChild(btnSupprimer);
   }
@@ -1142,17 +1226,27 @@ function terminerGlisser(){
   retirerEcouteursGlisser();
 
   if(derniereEntreeCible && dernierMode){
+    pousserUndo(clonerRacine());
+    const nomDeplace = entree.noeud.nom || '—';
+    const nomCible = derniereEntreeCible.noeud.nom || '—';
     const i = entree.parentArr.indexOf(entree.noeud);
     if(i>=0) entree.parentArr.splice(i,1);
+    let description;
     if(dernierMode==='enfant'){
       if(!derniereEntreeCible.noeud.enfants) derniereEntreeCible.noeud.enfants = [];
       derniereEntreeCible.noeud.enfants.push(entree.noeud);
+      description = `« ${nomDeplace} » est maintenant rattachée à « ${nomCible} »`;
     }else{
       const j = derniereEntreeCible.parentArr.indexOf(derniereEntreeCible.noeud);
       derniereEntreeCible.parentArr.splice(dernierMode==='avant' ? j : j+1, 0, entree.noeud);
+      description = dernierMode==='avant'
+        ? `« ${nomDeplace} » placée juste avant « ${nomCible} »`
+        : `« ${nomDeplace} » placée juste après « ${nomCible} »`;
     }
     marquerModifieArbre();
     redessinerArbre();
+    signalerArrivee(entree.noeud);
+    afficherToastArbre(description);
   }
   glisseArbre = null;
 }
@@ -1169,10 +1263,20 @@ const overlayArbre = document.getElementById('overlay-arbre');
 function gardeAvantFermeture(e){ if(arbreModifie){ e.preventDefault(); e.returnValue=''; } }
 document.getElementById('btn-arborescence').addEventListener('click', ()=>{
   arbreModifie = false;
+  pileUndo = [];
   majBanniereArbre();
+  majBoutonUndo();
   redessinerArbre();
   overlayArbre.classList.add('visible');
   window.addEventListener('beforeunload', gardeAvantFermeture);
+});
+document.getElementById('btn-undo-arbre').addEventListener('click', annulerDerniereAction);
+window.addEventListener('keydown', (e)=>{
+  if(!overlayArbre.classList.contains('visible')) return;
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){
+    e.preventDefault();
+    annulerDerniereAction();
+  }
 });
 document.getElementById('btn-fermer-arbre').addEventListener('click', async ()=>{
   window.removeEventListener('beforeunload', gardeAvantFermeture);
