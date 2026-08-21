@@ -700,6 +700,34 @@
                     ]
                   },
                   {
+                    "id": "B.5.1",
+                    "nom": "Eric TAVERNIER",
+                    "naissance": "16/02/1962"
+                  },
+                  {
+                    "id": "B.5.2",
+                    "nom": "Christine TAVERNIER",
+                    "naissance": "03/06/1963",
+                    "conjoint": {
+                      "nom": "Sophie VULLIET",
+                      "naissance": "01/12/1957"
+                    },
+                    "enfants": [
+                      {
+                        "nom": "Charlotte GASIGLIA",
+                        "naissance": "23/02/1986"
+                      },
+                      {
+                        "nom": "Nicolas GASIGLIA",
+                        "naissance": "12/08/1987"
+                      },
+                      {
+                        "nom": "Aurélie GASIGLIA",
+                        "naissance": "28/06/1990"
+                      }
+                    ]
+                  },
+                  {
                     "id": "B.5",
                     "nom": "Jean TAVERNIER",
                     "naissance": "24/10/1928",
@@ -732,44 +760,11 @@
                             "naissance": "05/10/1990",
                             "enfants": [
                               {
-                                "nom": " Louis",
-                                "naissance": "",
-                                "enfants": []
-                              },
-                              {
                                 "nom": "Gabrielle",
                                 "naissance": "",
                                 "enfants": []
                               }
                             ]
-                          }
-                        ]
-                      },
-                      {
-                        "id": "B.5.1",
-                        "nom": "Eric TAVERNIER",
-                        "naissance": "16/02/1962"
-                      },
-                      {
-                        "id": "B.5.2",
-                        "nom": "Christine TAVERNIER",
-                        "naissance": "03/06/1963",
-                        "conjoint": {
-                          "nom": "Sophie VULLIET",
-                          "naissance": "01/12/1957"
-                        },
-                        "enfants": [
-                          {
-                            "nom": "Charlotte GASIGLIA",
-                            "naissance": "23/02/1986"
-                          },
-                          {
-                            "nom": "Nicolas GASIGLIA",
-                            "naissance": "12/08/1987"
-                          },
-                          {
-                            "nom": "Aurélie GASIGLIA",
-                            "naissance": "28/06/1990"
                           }
                         ]
                       }
