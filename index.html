@@ -217,7 +217,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V5</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V6</button>
   </header>
 
   <div class="barre-outils">
@@ -437,8 +437,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V5";
+const VERSION = "V6";
 const HISTORIQUE_VERSIONS = [
+  { version:"V6", date:"21/08/2026", notes:"Correction : l'appui prolongé pour éditer une personne ne se déclenchait pas sur iPhone (Safari iOS gère mal les Pointer Events pour ce type de geste personnalisé). Remplacé par des événements tactiles natifs (touchstart/touchmove/touchend) pour le tactile et souris classique pour l'iMac — même choix que le glisser-déposer des cibles dans Le Déployeur." },
   { version:"V5", date:"21/08/2026", notes:"Arborescence : le double-clic/double-tap pour éditer une personne est remplacé par un appui prolongé (≈550 ms, souris ou tactile) sur la ligne — un mouvement de plus de 12 px pendant l'appui l'annule (pour ne pas gêner le défilement), et la ligne se teinte progressivement pendant l'attente puis flashe brièvement à l'ouverture de la fenêtre, pour bien montrer que l'appui est pris en compte." },
   { version:"V4", date:"21/08/2026", notes:"Arborescence : le texte n'est plus sélectionnable (survolait le glisser-déposer) et les champs ne sont plus modifiables directement dans la liste. Un double-clic (souris) ou un double-tap (tactile, détecté à la main pour fiabilité sur Safari iOS) sur une personne ouvre désormais une fenêtre d'édition complète — nom, naissance, décès, identifiant de branche, conjoint (nom/naissance/décès/mariage) et notes — avec deux boutons Valider / Annuler ; Valider s'intègre à l'historique d'annulation (↶) comme les autres opérations." },
   { version:"V3", date:"21/08/2026", notes:"Arborescence éditable : ajout d'un « Annuler » (↶, aussi Ctrl/Cmd+Z) qui revient pas à pas sur les dernières opérations (déplacement, suppression, création, modification de nom/date), désactivé quand il n'y a plus rien à annuler. Retour visuel du glisser-déposer largement renforcé : la ligne saisie se distingue nettement (hachures + liseré doré) dès qu'on pose le doigt/la souris sur sa poignée, les zones d'atterrissage potentielles se surlignent clairement au survol (trait doré lumineux avant/après, fond pointillé pour « devient enfant de »), et à la dépose la ligne arrivée à destination est mise en évidence par un flash doré de 1,8 s avec défilement automatique jusqu'à elle, accompagné d'un message temporaire précisant ce qui a été déplacé et où." },
@@ -1119,18 +1120,19 @@ function signalerArrivee(noeud){
   }
 }
 
-/* appui prolongé (souris ou tactile) sur une ligne : ouvre la fenêtre d'édition complète */
+/* appui prolongé (souris ou tactile) sur une ligne : ouvre la fenêtre d'édition complète.
+   Événements natifs séparés (souris / tactile) plutôt que Pointer Events, plus fiables sur Safari iOS
+   (même choix que pour le glisser-déposer des cibles dans Le Déployeur). */
 function brancherAppuiLongLigne(zone, entree){
   const DUREE_APPUI = 550;       // ms à tenir l'appui
   const SEUIL_DEPLACEMENT = 12;  // px : au-delà, on considère que c'est un défilement, pas un appui
-  let minuteur = null, xDepart = 0, yDepart = 0;
+  let minuteur = null, xDepart = 0, yDepart = 0, actif = false;
 
-  function demarrer(e){
-    if(e.pointerType==='mouse' && e.button!==0) return;
-    xDepart = e.clientX; yDepart = e.clientY;
+  function demarrer(x, y){
+    xDepart = x; yDepart = y; actif = true;
     zone.classList.add('appui-en-cours');
     minuteur = setTimeout(()=>{
-      minuteur = null;
+      minuteur = null; actif = false;
       zone.classList.remove('appui-en-cours');
       zone.classList.add('appui-declenche');
       setTimeout(()=>zone.classList.remove('appui-declenche'), 400);
@@ -1138,17 +1140,32 @@ function brancherAppuiLongLigne(zone, entree){
     }, DUREE_APPUI);
   }
   function annuler(){
+    actif = false;
     if(minuteur){ clearTimeout(minuteur); minuteur = null; }
     zone.classList.remove('appui-en-cours');
   }
-  function deplacer(e){
-    if(minuteur && Math.hypot(e.clientX-xDepart, e.clientY-yDepart) > SEUIL_DEPLACEMENT) annuler();
+  function deplacer(x, y){
+    if(minuteur && Math.hypot(x-xDepart, y-yDepart) > SEUIL_DEPLACEMENT) annuler();
   }
-  zone.addEventListener('pointerdown', demarrer);
-  zone.addEventListener('pointermove', deplacer);
-  zone.addEventListener('pointerup', annuler);
-  zone.addEventListener('pointerleave', annuler);
-  zone.addEventListener('pointercancel', annuler);
+
+  /* souris (iMac) */
+  zone.addEventListener('mousedown', (e)=>{ if(e.button===0) demarrer(e.clientX, e.clientY); });
+  zone.addEventListener('mousemove', (e)=>{ if(actif) deplacer(e.clientX, e.clientY); });
+  zone.addEventListener('mouseup', annuler);
+  zone.addEventListener('mouseleave', annuler);
+
+  /* tactile (iPhone) — touchstart/touchmove/touchend natifs plutôt que Pointer Events */
+  zone.addEventListener('touchstart', (e)=>{
+    const t = e.touches[0]; if(!t) return;
+    demarrer(t.clientX, t.clientY);
+  }, {passive:true});
+  zone.addEventListener('touchmove', (e)=>{
+    const t = e.touches[0]; if(!t) return;
+    deplacer(t.clientX, t.clientY);
+  }, {passive:true});
+  zone.addEventListener('touchend', annuler);
+  zone.addEventListener('touchcancel', annuler);
+
   zone.addEventListener('contextmenu', (e)=>e.preventDefault());
 }
 
