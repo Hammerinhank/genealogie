@@ -225,7 +225,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V10</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V11</button>
   </header>
 
   <div class="barre-outils">
@@ -251,7 +251,7 @@
   </div>
 
   <main>
-    <svg id="carte" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+    <svg id="carte">
       <defs>
         <filter id="grain" x="-20%" y="-20%" width="140%" height="140%">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="bruit"/>
@@ -448,8 +448,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V10";
+const VERSION = "V11";
 const HISTORIQUE_VERSIONS = [
+  { version:"V11", date:"22/08/2026", notes:"Correction du vrai bug derrière « plus aucune étiquette visible » : le <svg> portait depuis la toute première version un viewBox=\"0 0 100 100\" oublié, alors que tout le code JS raisonne en pixels réels de l'écran. Le navigateur écrasait donc silencieusement tout le graphique dans un espace 100×100 avant de l'agrandir pour remplir la page — un zoom involontaire d'environ 7 à 12× venait donc s'ajouter à celui calculé par l'app. Les segments (grandes zones de couleur) restaient visibles malgré tout, ce qui masquait le problème, mais les étiquettes, positionnées précisément, se retrouvaient éjectées à des milliers de pixels hors de l'écran. Le viewBox erroné a été retiré : le graphique s'affiche maintenant à la bonne échelle dès l'ouverture, et « Réinitialiser la vue » montre bien l'éventail complet. (Diagnostiqué et vérifié en rejouant le scénario avec un jeu de données de taille comparable au vôtre dans un navigateur automatisé.)" },
   { version:"V10", date:"22/08/2026", notes:"Refonte de la lisibilité des étiquettes du graphique. Cause du problème : le choix « afficher une étiquette, et avec combien de texte » était calculé une seule fois en unités locales, indépendamment du zoom — zoomer agrandissait un texte déjà tronqué à presque rien, sans jamais en révéler davantage, et les segments fins n'avaient aucune étiquette même très zoomés. Désormais, les étiquettes sont reposées à chaque changement de zoom réel (avec un léger différé pendant le geste) : la taille de police visée à l'écran reste constante quel que soit le zoom, et la troncature se recalcule en conséquence — zoomer sur une zone révèle donc progressivement des noms complets là où il n'y avait qu'un fragment. Correction géométrique au passage : la longueur de texte disponible est désormais bornée par l'épaisseur radiale de l'anneau (le texte se lit du centre vers l'extérieur), et non plus par la largeur angulaire, qui ne sert plus qu'à décider si une étiquette tient sans empiéter sur les voisines." },
   { version:"V9", date:"21/08/2026", notes:"Correction : après un premier appui long réussi sur le graphique, les suivants ne se déclenchaient plus. Cause : le doigt qui déclenche l'appui long n'était retiré du suivi tactile (utilisé aussi pour le pan/pincement) qu'à son relâchement — or cet événement de relâchement pouvait ne jamais arriver une fois le clavier ouvert pour l'édition, laissant le graphique croire qu'un doigt restait posé et bloquant tout nouvel appui long jusqu'au rechargement de la page. Le suivi est maintenant nettoyé dès que l'appui long se déclenche, et remis à zéro par sécurité à chaque fermeture de la fenêtre d'édition." },
   { version:"V8", date:"21/08/2026", notes:"Ajout de l'appui prolongé sur le graphique en éventail lui-même (un segment ou le cercle central) pour ouvrir la même fenêtre d'édition complète que dans l'arborescence — coexiste proprement avec le déplacement (pan) et le pincement (zoom) déjà en place : un déplacement ou un deuxième doigt annule l'appui en cours. Retour visuel assorti (teinte progressive puis flash) directement sur le segment ou le cercle concerné. Le clic normal (sélection/panneau de détail) n'est plus déclenché juste après un appui prolongé. Le toast de confirmation et la fenêtre d'édition sont désormais partagés entre l'arborescence et le graphique." },
