@@ -737,16 +737,6 @@
                     },
                     "enfants": [
                       {
-                        "id": "B.6.1",
-                        "nom": "Marielle TAVERNIER",
-                        "naissance": "22/04/1957"
-                      },
-                      {
-                        "id": "B.6.2",
-                        "nom": "Sylvie TAVERNIER",
-                        "naissance": "21/11/1961"
-                      },
-                      {
                         "id": "B.6",
                         "nom": "Henri TAVERNIER",
                         "naissance": "11/09/1954",
@@ -778,6 +768,16 @@
                           }
                         ],
                         "deces": ""
+                      },
+                      {
+                        "id": "B.6.1",
+                        "nom": "Marielle TAVERNIER",
+                        "naissance": "22/04/1957"
+                      },
+                      {
+                        "id": "B.6.2",
+                        "nom": "Sylvie TAVERNIER",
+                        "naissance": "21/11/1961"
                       }
                     ]
                   }
