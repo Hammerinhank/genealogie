@@ -772,7 +772,36 @@
                       {
                         "id": "B.6.1",
                         "nom": "Marielle TAVERNIER",
-                        "naissance": "22/04/1957"
+                        "naissance": "22/04/1957",
+                        "enfants": [
+                          {
+                            "nom": "Charlotte",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": "",
+                            "conjoint": {
+                              "nom": "Remi"
+                            }
+                          },
+                          {
+                            "nom": "Nicolas",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": ""
+                          },
+                          {
+                            "nom": "Aurélie",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": ""
+                          },
+                          {
+                            "nom": "Chloé",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": ""
+                          }
+                        ]
                       },
                       {
                         "id": "B.6.2",
