@@ -812,20 +812,22 @@
                             "naissance": "28/06/1990",
                             "enfants": [
                               {
+                                "nom": "Olivia",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              },
+                              {
                                 "nom": "Charline",
                                 "naissance": "",
                                 "enfants": [],
                                 "deces": ""
                               },
                               {
-                                "nom": "Nouvelle personne",
+                                "nom": "Emma",
                                 "naissance": "",
-                                "enfants": []
-                              },
-                              {
-                                "nom": "Nouvelle personne",
-                                "naissance": "",
-                                "enfants": []
+                                "enfants": [],
+                                "deces": ""
                               }
                             ]
                           },
