@@ -709,7 +709,22 @@
                       {
                         "id": "B.5.1",
                         "nom": "Eric TAVERNIER",
-                        "naissance": "16/02/1962"
+                        "naissance": "16/02/1962",
+                        "deces": "",
+                        "enfants": [
+                          {
+                            "nom": "Alexandre",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": ""
+                          },
+                          {
+                            "nom": "",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": ""
+                          }
+                        ]
                       },
                       {
                         "id": "B.5.2",
