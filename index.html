@@ -157,6 +157,11 @@
     -webkit-overflow-scrolling:touch;}
   #overlay-personne .actions-modale{flex:0 0 auto;border-top:1px solid var(--parchemin-ombre);
     margin-top:.2rem;padding:.7rem 0 1.1rem;}
+  .actions-nav-personne{flex:0 0 auto;display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;
+    margin-top:.5rem;padding-top:.6rem;border-top:1px dashed var(--parchemin-ombre);}
+  .actions-nav-personne .btn{font-size:.74rem;padding:.35rem .55rem;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn:disabled:active{background:var(--encre-fond);}
   .grp-vert label{font-size:.74rem;color:var(--sepia-att);display:flex;flex-direction:column;gap:.25rem;}
   .champ-clair{
     font-family:inherit;font-size:.82rem;background:#fffdf7;color:var(--sepia);
@@ -236,7 +241,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V13</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V14</button>
   </header>
 
   <div class="barre-outils">
@@ -429,6 +434,10 @@
         <textarea class="champ-clair" id="pers-notes" rows="2"></textarea>
       </label>
     </div>
+    <div class="actions-nav-personne">
+      <button class="btn" id="btn-pers-parent">⬆ Parent</button>
+      <button class="btn" id="btn-pers-ajouter-enfant">➕ Ajouter un enfant</button>
+    </div>
     <div class="actions-modale">
       <button class="btn accent" id="btn-pers-valider">Valider</button>
       <button class="btn" id="btn-pers-annuler">Annuler</button>
@@ -475,8 +484,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V13";
+const VERSION = "V14";
 const HISTORIQUE_VERSIONS = [
+  { version:"V14", date:"22/08/2026", notes:"Ajout, en bas à droite de la fiche d'édition d'une personne, de deux boutons de navigation : « ➕ Ajouter un enfant » (crée une nouvelle personne comme enfant de celle affichée et bascule directement sur sa fiche pour la renseigner) et « ⬆ Parent » (remonte à la fiche du parent de la personne affichée ; désactivé sur la racine, qui n'en a pas). Dans les deux cas, une éventuelle saisie en cours sur la fiche actuelle est automatiquement enregistrée avant de naviguer, pour ne rien perdre en construisant l'arbre de proche en proche." },
   { version:"V13", date:"22/08/2026", notes:"Le champ Notes de la fenêtre d'édition d'une personne récupérait par erreur une règle de style destinée au gros éditeur JSON (hauteur minimale de 40% de l'écran, redimensionnable à la main) — il a désormais une hauteur fixe et modeste, non redimensionnable. La fenêtre d'édition elle-même a été restructurée : seule la liste des champs défile désormais, les boutons Valider/Annuler restent toujours visibles en bas. Enfin, la hauteur maximale de toutes les fenêtres se recalcule sur la zone réellement visible de l'écran (via visualViewport) plutôt que sur la hauteur totale : sur iPhone, quand le clavier s'ouvre, la fenêtre se redimensionne pour ne jamais passer derrière lui." },
   { version:"V12", date:"22/08/2026", notes:"Correction du débordement des étiquettes sur la moitié gauche du graphique (celles qui partaient en diagonale, se chevauchant loin de leur case). Cause : pour rester lisibles (non tête-en-bas), les étiquettes de gauche sont tournées de 180° par rapport à celles de droite — mais l'ancrage du texte utilisé pour cette moitié le faisait s'étendre vers l'EXTÉRIEUR de l'anneau au lieu de rester entre son bord intérieur et son bord extérieur comme à droite. Vérifié visuellement des deux côtés du graphique avec un jeu de données volumineux avant envoi." },
   { version:"V11", date:"22/08/2026", notes:"Correction du vrai bug derrière « plus aucune étiquette visible » : le <svg> portait depuis la toute première version un viewBox=\"0 0 100 100\" oublié, alors que tout le code JS raisonne en pixels réels de l'écran. Le navigateur écrasait donc silencieusement tout le graphique dans un espace 100×100 avant de l'agrandir pour remplir la page — un zoom involontaire d'environ 7 à 12× venait donc s'ajouter à celui calculé par l'app. Les segments (grandes zones de couleur) restaient visibles malgré tout, ce qui masquait le problème, mais les étiquettes, positionnées précisément, se retrouvaient éjectées à des milliers de pixels hors de l'écran. Le viewBox erroné a été retiré : le graphique s'affiche maintenant à la bonne échelle dès l'ouverture, et « Réinitialiser la vue » montre bien l'éventail complet. (Diagnostiqué et vérifié en rejouant le scénario avec un jeu de données de taille comparable au vôtre dans un navigateur automatisé.)" },
@@ -1524,11 +1534,26 @@ function annulerGlisser(){
 }
 
 /* ===================== Fenêtre d'édition d'une personne ===================== */
-/* Utilisable depuis l'arborescence ET depuis le graphique en éventail : ouvrirEditionPersonne
-   prend directement le nœud généalogique, pas une ligne d'arborescence. */
+/* Utilisable depuis l'arborescence ET depuis le graphique en éventail : les fonctions ci-dessous
+   prennent directement le nœud généalogique, pas une ligne d'arborescence. */
 const overlayPersonne = document.getElementById('overlay-personne');
 let entreeEnEdition = null;
-function ouvrirEditionPersonne(noeud){
+
+function trouverParent(cible, depart){
+  depart = depart || donnees.racine;
+  if(!depart.enfants) return null;
+  for(const e of depart.enfants){
+    if(e===cible) return depart;
+    const trouve = trouverParent(cible, e);
+    if(trouve) return trouve;
+  }
+  return null;
+}
+
+/* Remplit le formulaire pour un nœud donné SANS toucher à la visibilité de la fenêtre — utilisé à
+   l'ouverture initiale, mais aussi pour naviguer vers un enfant nouvellement créé ou vers le parent
+   sans fermer/rouvrir la fenêtre. */
+function remplirFormulairePersonne(noeud){
   entreeEnEdition = noeud;
   const n = noeud, estRacine = (n===donnees.racine);
   document.getElementById('titre-personne').textContent = estRacine ? 'Éditer la racine' : 'Éditer cette personne';
@@ -1543,6 +1568,10 @@ function ouvrirEditionPersonne(noeud){
   document.getElementById('pers-conj-deces').value = c.deces || '';
   document.getElementById('pers-conj-mariage').value = c.mariage || '';
   document.getElementById('pers-notes').value = n.notes || '';
+  document.getElementById('btn-pers-parent').disabled = estRacine;
+}
+function ouvrirEditionPersonne(noeud){
+  remplirFormulairePersonne(noeud);
   overlayPersonne.classList.add('visible');
   setTimeout(()=>document.getElementById('pers-nom').focus(), 60);
 }
@@ -1560,8 +1589,13 @@ function fermerEditionPersonne(){
 document.getElementById('btn-pers-annuler').addEventListener('click', fermerEditionPersonne);
 document.getElementById('fermer-personne').addEventListener('click', fermerEditionPersonne);
 overlayPersonne.addEventListener('click', (e)=>{ if(e.target===overlayPersonne) fermerEditionPersonne(); });
-document.getElementById('btn-pers-valider').addEventListener('click', ()=>{
-  if(!entreeEnEdition) return;
+
+/* Écrit les valeurs actuellement saisies dans le nœud en cours d'édition (undo + redessin selon le
+   contexte), sans fermer la fenêtre ni afficher de confirmation — utilisé par Valider, mais aussi
+   avant toute navigation (ajouter un enfant / remonter au parent) pour ne pas perdre une saisie en
+   cours. Renvoie le nœud modifié, ou null si rien n'était en cours d'édition. */
+function appliquerFormulairePersonne(){
+  if(!entreeEnEdition) return null;
   const dansArborescence = overlayArbre.classList.contains('visible');
   if(dansArborescence) pousserUndo(clonerRacine());
   const n = entreeEnEdition, estRacine = (n===donnees.racine);
@@ -1580,16 +1614,48 @@ document.getElementById('btn-pers-valider').addEventListener('click', ()=>{
   else{ delete n.conjoint; }
   const notesVal = document.getElementById('pers-notes').value.trim();
   if(notesVal) n.notes = notesVal; else delete n.notes;
-  const noeudModifie = n;
-  fermerEditionPersonne();
   if(dansArborescence){
     marquerModifieArbre();
     redessinerArbre();
-    signalerArrivee(noeudModifie);
   }else{
-    construireLayout(); redessiner(); redessinerLegende();
+    construireLayout(); redessiner(); redessinerLegende(); remplirSelecteurProfondeur();
   }
-  afficherToast(`« ${noeudModifie.nom||'—'} » mise à jour`);
+  return n;
+}
+
+document.getElementById('btn-pers-valider').addEventListener('click', ()=>{
+  const dansArborescence = overlayArbre.classList.contains('visible');
+  const n = appliquerFormulairePersonne();
+  if(!n) return;
+  fermerEditionPersonne();
+  if(dansArborescence) signalerArrivee(n);
+  afficherToast(`« ${n.nom||'—'} » mise à jour`);
+});
+
+document.getElementById('btn-pers-ajouter-enfant').addEventListener('click', ()=>{
+  const parent = appliquerFormulairePersonne(); // conserve d'abord la saisie en cours sur ce nœud
+  if(!parent) return;
+  const dansArborescence = overlayArbre.classList.contains('visible');
+  if(dansArborescence) pousserUndo(clonerRacine());
+  if(!parent.enfants) parent.enfants = [];
+  const nouveau = {nom:'Nouvelle personne', naissance:'', enfants:[]};
+  parent.enfants.push(nouveau);
+  if(dansArborescence){
+    marquerModifieArbre();
+    redessinerArbre();
+  }else{
+    construireLayout(); redessiner(); redessinerLegende(); remplirSelecteurProfondeur();
+  }
+  remplirFormulairePersonne(nouveau);
+  setTimeout(()=>{ const c=document.getElementById('pers-nom'); c.focus(); c.select(); }, 60);
+});
+
+document.getElementById('btn-pers-parent').addEventListener('click', ()=>{
+  if(!entreeEnEdition) return;
+  const enfant = entreeEnEdition;
+  appliquerFormulairePersonne(); // conserve d'abord la saisie en cours sur ce nœud
+  const parent = trouverParent(enfant);
+  if(parent) remplirFormulairePersonne(parent);
 });
 
 const overlayArbre = document.getElementById('overlay-arbre');
