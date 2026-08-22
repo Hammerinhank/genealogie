@@ -225,7 +225,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V8</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V9</button>
   </header>
 
   <div class="barre-outils">
@@ -447,8 +447,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V8";
+const VERSION = "V9";
 const HISTORIQUE_VERSIONS = [
+  { version:"V9", date:"21/08/2026", notes:"Correction : après un premier appui long réussi sur le graphique, les suivants ne se déclenchaient plus. Cause : le doigt qui déclenche l'appui long n'était retiré du suivi tactile (utilisé aussi pour le pan/pincement) qu'à son relâchement — or cet événement de relâchement pouvait ne jamais arriver une fois le clavier ouvert pour l'édition, laissant le graphique croire qu'un doigt restait posé et bloquant tout nouvel appui long jusqu'au rechargement de la page. Le suivi est maintenant nettoyé dès que l'appui long se déclenche, et remis à zéro par sécurité à chaque fermeture de la fenêtre d'édition." },
   { version:"V8", date:"21/08/2026", notes:"Ajout de l'appui prolongé sur le graphique en éventail lui-même (un segment ou le cercle central) pour ouvrir la même fenêtre d'édition complète que dans l'arborescence — coexiste proprement avec le déplacement (pan) et le pincement (zoom) déjà en place : un déplacement ou un deuxième doigt annule l'appui en cours. Retour visuel assorti (teinte progressive puis flash) directement sur le segment ou le cercle concerné. Le clic normal (sélection/panneau de détail) n'est plus déclenché juste après un appui prolongé. Le toast de confirmation et la fenêtre d'édition sont désormais partagés entre l'arborescence et le graphique." },
   { version:"V7", date:"21/08/2026", notes:"Correction du vrai problème derrière « l'appui long ne fait rien » : la fenêtre d'édition d'une personne (et la confirmation de suppression) s'ouvraient bien, mais restaient cachées sous la page plein écran de l'arborescence, qui partageait le même niveau d'empilement (z-index) et venait après elles dans la page — elles n'apparaissaient qu'une fois l'arborescence refermée. La page arborescence a maintenant un niveau plus bas que ces fenêtres, qui s'affichent donc correctement par-dessus. (Le changement Pointer Events → événements tactiles natifs de la V6 était inutile pour ce bug précis mais reste en place, sans effet négatif.)" },
   { version:"V6", date:"21/08/2026", notes:"Correction : l'appui prolongé pour éditer une personne ne se déclenchait pas sur iPhone (Safari iOS gère mal les Pointer Events pour ce type de geste personnalisé). Remplacé par des événements tactiles natifs (touchstart/touchmove/touchend) pour le tactile et souris classique pour l'iMac — même choix que le glisser-déposer des cibles dans Le Déployeur." },
@@ -828,12 +829,17 @@ function demarrerAppuiLongElement(e, noeud, elt){
   if(pointeurs.size>=1) return; // un autre doigt est déjà posé : probablement un pincement, pas un appui
   annulerAppuiLongElement();
   elt.classList.add('appui-en-cours');
+  const idPointeur = e.pointerId;
   const minuteur = setTimeout(()=>{
     appuiLongSegment = null;
     dernierAppuiLongDeclenche = true;
     elt.classList.remove('appui-en-cours');
     elt.classList.add('appui-declenche');
     setTimeout(()=>elt.classList.remove('appui-declenche'), 400);
+    /* nettoyage préventif : une fois l'édition déclenchée, on ne compte plus sur un pointerup/pointercancel
+       pour libérer ce pointeur — sur iPhone, l'ouverture du clavier peut faire disparaître cet événement,
+       ce qui bloquait tout nouvel appui long tant que la page n'était pas rechargée */
+    relacherPointeur({pointerId:idPointeur});
     ouvrirEditionPersonne(noeud);
   }, DUREE_APPUI_EVENTAIL);
   appuiLongSegment = {noeud, elt, xDepart:e.clientX, yDepart:e.clientY, minuteur};
@@ -1443,6 +1449,13 @@ function ouvrirEditionPersonne(noeud){
 function fermerEditionPersonne(){
   overlayPersonne.classList.remove('visible');
   entreeEnEdition = null;
+  /* filet de sécurité : quelle que soit la cause d'ouverture (arborescence ou graphique), on repart
+     d'un suivi tactile/souris propre pour le graphique en éventail */
+  annulerAppuiLongElement();
+  pointeurs.clear();
+  pincement = null;
+  glissement = null;
+  svg.classList.remove('saisie');
 }
 document.getElementById('btn-pers-annuler').addEventListener('click', fermerEditionPersonne);
 document.getElementById('fermer-personne').addEventListener('click', fermerEditionPersonne);
