@@ -127,7 +127,7 @@
   .overlay.visible{display:flex;}
   .carte-modale{
     background:var(--parchemin);color:var(--sepia);border-radius:14px;max-width:640px;width:100%;
-    max-height:88vh;overflow:auto;padding:1.1rem 1.2rem;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5);
+    max-height:var(--vh-modale, 88vh);overflow:auto;padding:1.1rem 1.2rem;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.5);
   }
   .carte-modale h2{font-family:'Fraunces',serif;margin-top:0;font-size:1.15rem;}
   .carte-modale .fermer{position:absolute;top:.6rem;right:.7rem;background:none;border:none;font-size:1.3rem;
@@ -135,17 +135,28 @@
   .carte-modale table{width:100%;border-collapse:collapse;font-size:.82rem;}
   .carte-modale td,.carte-modale th{padding:.35rem .3rem;border-bottom:1px solid var(--parchemin-ombre);
     text-align:left;vertical-align:top;}
-  .carte-modale textarea{
+  #zone-json{
     width:100%;min-height:40vh;font-family:'JetBrains Mono',monospace;font-size:.76rem;
     background:#fffdf7;color:var(--sepia);border:1px solid var(--parchemin-ombre);border-radius:8px;
     padding:.6rem;resize:vertical;
   }
+  #pers-notes{min-height:3.4rem;max-height:7rem;resize:none;}
   .erreur-json{color:var(--danger);font-size:.78rem;margin-top:.4rem;white-space:pre-wrap;}
   .aide-format{font-size:.76rem;color:var(--sepia-att);margin-top:.6rem;line-height:1.5;}
   .aide-format code{background:var(--parchemin-ombre);padding:.05rem .3rem;border-radius:4px;}
   .actions-modale{display:flex;gap:.5rem;margin-top:.7rem;flex-wrap:wrap;}
 
   .grp-vert{display:flex;flex-direction:column;gap:.6rem;margin:.6rem 0;}
+
+  /* Fenêtre d'édition d'une personne : la carte garde une hauteur fixe (adaptée à l'écran visible,
+     clavier iPhone compris), seule la liste des champs défile — Valider/Annuler restent toujours
+     visibles et atteignables sans avoir à faire défiler jusqu'à eux. */
+  #overlay-personne .carte-modale{display:flex;flex-direction:column;overflow:hidden;padding-bottom:0;}
+  #overlay-personne .carte-modale h2{flex:0 0 auto;}
+  #overlay-personne .grp-vert{flex:1 1 auto;overflow-y:auto;min-height:0;padding-right:.15rem;
+    -webkit-overflow-scrolling:touch;}
+  #overlay-personne .actions-modale{flex:0 0 auto;border-top:1px solid var(--parchemin-ombre);
+    margin-top:.2rem;padding:.7rem 0 1.1rem;}
   .grp-vert label{font-size:.74rem;color:var(--sepia-att);display:flex;flex-direction:column;gap:.25rem;}
   .champ-clair{
     font-family:inherit;font-size:.82rem;background:#fffdf7;color:var(--sepia);
@@ -225,7 +236,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V12</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V13</button>
   </header>
 
   <div class="barre-outils">
@@ -415,7 +426,7 @@
         <input class="champ-clair" id="pers-conj-mariage" placeholder="ex. 1870">
       </label>
       <label>Notes
-        <textarea class="champ-clair" id="pers-notes" rows="2" style="resize:vertical;"></textarea>
+        <textarea class="champ-clair" id="pers-notes" rows="2"></textarea>
       </label>
     </div>
     <div class="actions-modale">
@@ -447,9 +458,26 @@
 (function(){
 "use strict";
 
+/* ===================== Hauteur des modales adaptée à l'écran réellement visible ===================== */
+/* Sur iPhone, quand le clavier s'ouvre, 100vh ne se réduit pas toujours en conséquence (le clavier
+   flotte par-dessus) — visualViewport, lui, reflète la zone effectivement visible. On en déduit une
+   variable CSS utilisée comme max-height par .carte-modale, pour qu'aucune fenêtre ne se retrouve
+   partiellement cachée derrière le clavier. */
+function ajusterHauteurModales(){
+  const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight) || 700;
+  document.documentElement.style.setProperty('--vh-modale', Math.round(h*0.9)+'px');
+}
+ajusterHauteurModales();
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', ajusterHauteurModales);
+} else {
+  window.addEventListener('resize', ajusterHauteurModales);
+}
+
 /* ===================== Version ===================== */
-const VERSION = "V12";
+const VERSION = "V13";
 const HISTORIQUE_VERSIONS = [
+  { version:"V13", date:"22/08/2026", notes:"Le champ Notes de la fenêtre d'édition d'une personne récupérait par erreur une règle de style destinée au gros éditeur JSON (hauteur minimale de 40% de l'écran, redimensionnable à la main) — il a désormais une hauteur fixe et modeste, non redimensionnable. La fenêtre d'édition elle-même a été restructurée : seule la liste des champs défile désormais, les boutons Valider/Annuler restent toujours visibles en bas. Enfin, la hauteur maximale de toutes les fenêtres se recalcule sur la zone réellement visible de l'écran (via visualViewport) plutôt que sur la hauteur totale : sur iPhone, quand le clavier s'ouvre, la fenêtre se redimensionne pour ne jamais passer derrière lui." },
   { version:"V12", date:"22/08/2026", notes:"Correction du débordement des étiquettes sur la moitié gauche du graphique (celles qui partaient en diagonale, se chevauchant loin de leur case). Cause : pour rester lisibles (non tête-en-bas), les étiquettes de gauche sont tournées de 180° par rapport à celles de droite — mais l'ancrage du texte utilisé pour cette moitié le faisait s'étendre vers l'EXTÉRIEUR de l'anneau au lieu de rester entre son bord intérieur et son bord extérieur comme à droite. Vérifié visuellement des deux côtés du graphique avec un jeu de données volumineux avant envoi." },
   { version:"V11", date:"22/08/2026", notes:"Correction du vrai bug derrière « plus aucune étiquette visible » : le <svg> portait depuis la toute première version un viewBox=\"0 0 100 100\" oublié, alors que tout le code JS raisonne en pixels réels de l'écran. Le navigateur écrasait donc silencieusement tout le graphique dans un espace 100×100 avant de l'agrandir pour remplir la page — un zoom involontaire d'environ 7 à 12× venait donc s'ajouter à celui calculé par l'app. Les segments (grandes zones de couleur) restaient visibles malgré tout, ce qui masquait le problème, mais les étiquettes, positionnées précisément, se retrouvaient éjectées à des milliers de pixels hors de l'écran. Le viewBox erroné a été retiré : le graphique s'affiche maintenant à la bonne échelle dès l'ouverture, et « Réinitialiser la vue » montre bien l'éventail complet. (Diagnostiqué et vérifié en rejouant le scénario avec un jeu de données de taille comparable au vôtre dans un navigateur automatisé.)" },
   { version:"V10", date:"22/08/2026", notes:"Refonte de la lisibilité des étiquettes du graphique. Cause du problème : le choix « afficher une étiquette, et avec combien de texte » était calculé une seule fois en unités locales, indépendamment du zoom — zoomer agrandissait un texte déjà tronqué à presque rien, sans jamais en révéler davantage, et les segments fins n'avaient aucune étiquette même très zoomés. Désormais, les étiquettes sont reposées à chaque changement de zoom réel (avec un léger différé pendant le geste) : la taille de police visée à l'écran reste constante quel que soit le zoom, et la troncature se recalcule en conséquence — zoomer sur une zone révèle donc progressivement des noms complets là où il n'y avait qu'un fragment. Correction géométrique au passage : la longueur de texte disponible est désormais bornée par l'épaisseur radiale de l'anneau (le texte se lit du centre vers l'extérieur), et non plus par la largeur angulaire, qui ne sert plus qu'à décider si une étiquette tient sans empiéter sur les voisines." },
