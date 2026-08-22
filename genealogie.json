@@ -763,20 +763,74 @@
                         "enfants": [
                           {
                             "nom": "Charlotte GASIGLIA",
-                            "naissance": "23/02/1986"
+                            "naissance": "23/02/1986",
+                            "deces": "",
+                            "enfants": [
+                              {
+                                "nom": "Paul",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              },
+                              {
+                                "nom": "Victoire",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              }
+                            ]
                           },
                           {
                             "nom": "Nicolas GASIGLIA",
-                            "naissance": "12/08/1987"
+                            "naissance": "12/08/1987",
+                            "enfants": [
+                              {
+                                "nom": "Marin",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              },
+                              {
+                                "nom": "Lise",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              }
+                            ]
                           },
                           {
                             "nom": "Aurélie GASIGLIA",
-                            "naissance": "28/06/1990"
+                            "naissance": "28/06/1990",
+                            "enfants": [
+                              {
+                                "nom": "Charline",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              },
+                              {
+                                "nom": "Nouvelle personne",
+                                "naissance": "",
+                                "enfants": []
+                              },
+                              {
+                                "nom": "Nouvelle personne",
+                                "naissance": "",
+                                "enfants": []
+                              }
+                            ]
                           },
                           {
                             "nom": "Chloé",
                             "naissance": "",
-                            "enfants": [],
+                            "enfants": [
+                              {
+                                "nom": "Gaspard",
+                                "naissance": "",
+                                "enfants": [],
+                                "deces": ""
+                              }
+                            ],
                             "deces": ""
                           }
                         ]
