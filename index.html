@@ -81,13 +81,13 @@
   .segment:hover,.segment.surbrille{filter:brightness(1.28);stroke-width:1.6;}
   .segment.appui-en-cours{filter:brightness(1.4) saturate(1.35);stroke-width:1.8;transition:filter 550ms linear;}
   .segment.appui-declenche{filter:brightness(1.75);transition:filter .15s;}
-  .etiquette{font-size:11px;fill:var(--sepia);pointer-events:none;}
-  .etiquette.dates{font-size:8.5px;fill:var(--sepia-att);}
+  .etiquette{fill:var(--sepia);pointer-events:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;}
+  .etiquette.dates{fill:var(--sepia-att);font-family:'JetBrains Mono',monospace;}
   .centre-cercle{fill:var(--parchemin);stroke:var(--laiton);stroke-width:2;cursor:pointer;transition:filter .12s;}
   .centre-cercle.appui-en-cours{filter:brightness(.92) saturate(1.3);transition:filter 550ms linear;}
   .centre-cercle.appui-declenche{filter:brightness(.78);transition:filter .15s;}
-  .centre-texte{font-family:'Fraunces',serif;font-size:13px;fill:var(--sepia);text-anchor:middle;pointer-events:none;}
-  .centre-texte.dates{font-family:'JetBrains Mono',monospace;font-size:9px;fill:var(--sepia-att);}
+  .centre-texte{font-family:'Fraunces',serif;fill:var(--sepia);text-anchor:middle;pointer-events:none;}
+  .centre-texte.dates{font-family:'JetBrains Mono',monospace;fill:var(--sepia-att);}
   .anneau-repere{fill:none;stroke:var(--parchemin);stroke-opacity:.06;stroke-dasharray:2 6;}
 
   #panneau-details{
@@ -225,7 +225,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V9</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V10</button>
   </header>
 
   <div class="barre-outils">
@@ -264,6 +264,7 @@
         <g id="reperes"></g>
         <g id="segments"></g>
         <g id="centre"></g>
+        <g id="etiquettes"></g>
       </g>
     </svg>
 
@@ -447,8 +448,9 @@
 "use strict";
 
 /* ===================== Version ===================== */
-const VERSION = "V9";
+const VERSION = "V10";
 const HISTORIQUE_VERSIONS = [
+  { version:"V10", date:"22/08/2026", notes:"Refonte de la lisibilité des étiquettes du graphique. Cause du problème : le choix « afficher une étiquette, et avec combien de texte » était calculé une seule fois en unités locales, indépendamment du zoom — zoomer agrandissait un texte déjà tronqué à presque rien, sans jamais en révéler davantage, et les segments fins n'avaient aucune étiquette même très zoomés. Désormais, les étiquettes sont reposées à chaque changement de zoom réel (avec un léger différé pendant le geste) : la taille de police visée à l'écran reste constante quel que soit le zoom, et la troncature se recalcule en conséquence — zoomer sur une zone révèle donc progressivement des noms complets là où il n'y avait qu'un fragment. Correction géométrique au passage : la longueur de texte disponible est désormais bornée par l'épaisseur radiale de l'anneau (le texte se lit du centre vers l'extérieur), et non plus par la largeur angulaire, qui ne sert plus qu'à décider si une étiquette tient sans empiéter sur les voisines." },
   { version:"V9", date:"21/08/2026", notes:"Correction : après un premier appui long réussi sur le graphique, les suivants ne se déclenchaient plus. Cause : le doigt qui déclenche l'appui long n'était retiré du suivi tactile (utilisé aussi pour le pan/pincement) qu'à son relâchement — or cet événement de relâchement pouvait ne jamais arriver une fois le clavier ouvert pour l'édition, laissant le graphique croire qu'un doigt restait posé et bloquant tout nouvel appui long jusqu'au rechargement de la page. Le suivi est maintenant nettoyé dès que l'appui long se déclenche, et remis à zéro par sécurité à chaque fermeture de la fenêtre d'édition." },
   { version:"V8", date:"21/08/2026", notes:"Ajout de l'appui prolongé sur le graphique en éventail lui-même (un segment ou le cercle central) pour ouvrir la même fenêtre d'édition complète que dans l'arborescence — coexiste proprement avec le déplacement (pan) et le pincement (zoom) déjà en place : un déplacement ou un deuxième doigt annule l'appui en cours. Retour visuel assorti (teinte progressive puis flash) directement sur le segment ou le cercle concerné. Le clic normal (sélection/panneau de détail) n'est plus déclenché juste après un appui prolongé. Le toast de confirmation et la fenêtre d'édition sont désormais partagés entre l'arborescence et le graphique." },
   { version:"V7", date:"21/08/2026", notes:"Correction du vrai problème derrière « l'appui long ne fait rien » : la fenêtre d'édition d'une personne (et la confirmation de suppression) s'ouvraient bien, mais restaient cachées sous la page plein écran de l'arborescence, qui partageait le même niveau d'empilement (z-index) et venait après elles dans la page — elles n'apparaissaient qu'une fois l'arborescence refermée. La page arborescence a maintenant un niveau plus bas que ces fenêtres, qui s'affichent donc correctement par-dessus. (Le changement Pointer Events → événements tactiles natifs de la V6 était inutile pour ce bug précis mais reste en place, sans effet négatif.)" },
@@ -526,6 +528,7 @@ const gViewport = document.getElementById('viewport');
 const gSegments = document.getElementById('segments');
 const gCentre = document.getElementById('centre');
 const gReperes = document.getElementById('reperes');
+const gEtiquettes = document.getElementById('etiquettes');
 
 /* canvas caché pour mesurer le texte avant troncature */
 const canvasMesure = document.createElement('canvas');
@@ -595,6 +598,21 @@ function cheminSegment(rInt, rExt, a0, a1){
          `A ${rInt.toFixed(2)} ${rInt.toFixed(2)} 0 ${large} 0 ${p0i.x.toFixed(2)} ${p0i.y.toFixed(2)} Z`;
 }
 
+function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+/* Cibles en pixels ÉCRAN (CSS), constantes quel que soit le zoom — c'est ce qui garantit un texte
+   toujours lisible : on choisit la taille de police LOCALE (divisée par vue.s) pour que la taille
+   affichée à l'écran reste proche de ces cibles, et on retranche les étiquettes en conséquence à
+   chaque changement de zoom plutôt qu'une seule fois pour toutes. */
+const TAILLE_ECRAN_NOM = 13;
+const TAILLE_ECRAN_DATES = 10;
+const SEUIL_ECRAN_ANGULAIRE = 15;        // largeur (tangentielle) mini pour afficher le nom
+const SEUIL_ECRAN_ANGULAIRE_DATES = 28;  // largeur mini supplémentaire pour ajouter les dates
+const SEUIL_ECRAN_RADIAL = 16;           // épaisseur (radiale) mini pour afficher le nom
+const SEUIL_ECRAN_RADIAL_DATES = 30;     // épaisseur mini supplémentaire pour ajouter les dates
+const TAILLE_ECRAN_NOM_CENTRE = 15;
+const TAILLE_ECRAN_DATES_CENTRE = 10.5;
+
 function redessiner(){
   gSegments.innerHTML = '';
   gCentre.innerHTML = '';
@@ -614,23 +632,8 @@ function redessiner(){
   cc.setAttribute('class','centre-cercle'); cc.setAttribute('cx',0); cc.setAttribute('cy',0); cc.setAttribute('r',rInner0);
   cc.addEventListener('pointerdown', (e)=>demarrerAppuiLongElement(e, racine, cc));
   gCentre.appendChild(cc);
-  const lignesCentre = [];
-  lignesCentre.push({t:racine.nom||'—', cls:''});
-  if(racine.naissance||racine.deces) lignesCentre.push({t:formatDates(racine), cls:'dates'});
-  if(racine.conjoint){
-    lignesCentre.push({t:'& '+(racine.conjoint.nom||'—'), cls:''});
-    if(racine.conjoint.naissance||racine.conjoint.deces) lignesCentre.push({t:formatDates(racine.conjoint), cls:'dates'});
-  }
-  const decal = -(lignesCentre.length-1)*7;
-  lignesCentre.forEach((l,i)=>{
-    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
-    t.setAttribute('class','centre-texte'+(l.cls?' '+l.cls:''));
-    t.setAttribute('x',0); t.setAttribute('y', decal + i*13);
-    t.textContent = tronquer(l.t, rInner0*1.75, l.cls==='dates'?'9px JetBrains Mono':'600 13px Fraunces');
-    gCentre.appendChild(t);
-  });
 
-  // segments
+  // segments (chemins uniquement — les étiquettes sont posées séparément par dessinerEtiquettes)
   listeNoeuds.forEach(n=>{
     if(n._prof > profondeurMax) return;
     const rInt = rInner0 + (n._prof-1)*epaisseurAnneau;
@@ -646,11 +649,52 @@ function redessiner(){
       selectionner(n, path);
     });
     gSegments.appendChild(path);
+  });
 
+  dessinerEtiquettes();
+}
+
+/* Repose les étiquettes (texte central + noms/dates des segments) à la taille adaptée au zoom
+   actuel (vue.s). Appelée au premier dessin, puis à nouveau (avec un léger différé) à chaque
+   changement de zoom, pour que zoomer révèle progressivement plus de texte au lieu de se contenter
+   d'agrandir un texte déjà tronqué. */
+function dessinerEtiquettes(){
+  gEtiquettes.innerHTML = '';
+  const s = vue.s;
+  const racine = donnees.racine;
+
+  // --- texte central (racine) ---
+  const tailleNomCentre = clamp(TAILLE_ECRAN_NOM_CENTRE/s, 4, 60);
+  const tailleDatesCentre = clamp(TAILLE_ECRAN_DATES_CENTRE/s, 3, 44);
+  const largeurCentreLocale = rInner0*1.75;
+  const lignesCentre = [];
+  lignesCentre.push({t:racine.nom||'—', cls:'', taille:tailleNomCentre, police:'600 '+tailleNomCentre.toFixed(2)+'px Fraunces'});
+  if(racine.naissance||racine.deces) lignesCentre.push({t:formatDates(racine), cls:'dates', taille:tailleDatesCentre, police:tailleDatesCentre.toFixed(2)+'px JetBrains Mono'});
+  if(racine.conjoint){
+    lignesCentre.push({t:'& '+(racine.conjoint.nom||'—'), cls:'', taille:tailleNomCentre, police:'600 '+tailleNomCentre.toFixed(2)+'px Fraunces'});
+    if(racine.conjoint.naissance||racine.conjoint.deces) lignesCentre.push({t:formatDates(racine.conjoint), cls:'dates', taille:tailleDatesCentre, police:tailleDatesCentre.toFixed(2)+'px JetBrains Mono'});
+  }
+  const decal = -(lignesCentre.length-1)*(tailleNomCentre*0.62);
+  lignesCentre.forEach((l,i)=>{
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('class','centre-texte'+(l.cls?' '+l.cls:''));
+    t.setAttribute('x',0); t.setAttribute('y', decal + i*(tailleNomCentre*1.05));
+    t.style.fontSize = l.taille.toFixed(2)+'px';
+    t.textContent = tronquer(l.t, largeurCentreLocale, l.police);
+    gEtiquettes.appendChild(t);
+  });
+
+  // --- segments ---
+  listeNoeuds.forEach(n=>{
+    if(n._prof > profondeurMax) return;
+    const rInt = rInner0 + (n._prof-1)*epaisseurAnneau;
+    const rExt = rInner0 + n._prof*epaisseurAnneau;
     const angMid = (n._a0+n._a1)/2;
-    const largeurAngPx = (n._a1-n._a0) * (rInt+rExt)/2;
-    const hauteurAnneau = rExt-rInt;
-    if(largeurAngPx < 34) return; // trop fin : pas d'étiquette, reste cliquable
+    const largeurAngPx = (n._a1-n._a0) * (rInt+rExt)/2;  // tangentiel, unités locales
+    const hauteurAnneau = rExt-rInt;                      // radial, unités locales
+    const largeurEcran = largeurAngPx * s;
+    const hauteurEcran = hauteurAnneau * s;
+    if(largeurEcran < SEUIL_ECRAN_ANGULAIRE || hauteurEcran < SEUIL_ECRAN_RADIAL) return; // trop fin : pas d'étiquette, reste cliquable
 
     let deg = angMid*180/Math.PI;
     deg = ((deg%360)+360)%360;
@@ -663,20 +707,28 @@ function redessiner(){
     const g = document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('transform', `translate(${pt.x.toFixed(2)} ${pt.y.toFixed(2)}) rotate(${rotation.toFixed(2)})`);
 
+    // le texte est orienté radialement : sa LONGUEUR est bornée par l'épaisseur (radiale) de l'anneau,
+    // pas par la largeur angulaire (qui, elle, sert seulement à décider si une étiquette tient du tout)
+    const tailleNom = clamp(TAILLE_ECRAN_NOM/s, 3, 48);
+    const margeLocale = 8/s;
+    const maxPxNom = Math.max(hauteurAnneau - margeLocale, tailleNom*0.9);
+
     const t1 = document.createElementNS('http://www.w3.org/2000/svg','text');
     t1.setAttribute('class','etiquette'); t1.setAttribute('text-anchor',ancre);
-    const maxPx = Math.max(largeurAngPx-10, hauteurAnneau*3.4);
-    t1.textContent = tronquer(n.nom||'—', maxPx, '11px -apple-system,sans-serif');
+    t1.style.fontSize = tailleNom.toFixed(2)+'px';
+    t1.textContent = tronquer(n.nom||'—', maxPxNom, tailleNom.toFixed(2)+'px -apple-system,sans-serif');
     g.appendChild(t1);
 
-    if(afficherDates && hauteurAnneau > 30 && (n.naissance||n.deces)){
+    if(afficherDates && largeurEcran > SEUIL_ECRAN_ANGULAIRE_DATES && hauteurEcran > SEUIL_ECRAN_RADIAL_DATES && (n.naissance||n.deces)){
+      const tailleDates = clamp(TAILLE_ECRAN_DATES/s, 3, 34);
       const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
       t2.setAttribute('class','etiquette dates'); t2.setAttribute('text-anchor',ancre);
-      t2.setAttribute('dy','11');
-      t2.textContent = tronquer(formatDates(n), maxPx, '8.5px -apple-system,sans-serif');
+      t2.style.fontSize = tailleDates.toFixed(2)+'px';
+      t2.setAttribute('dy', (tailleNom*1.05).toFixed(2));
+      t2.textContent = tronquer(formatDates(n), maxPxNom, tailleDates.toFixed(2)+'px JetBrains Mono');
       g.appendChild(t2);
     }
-    gSegments.appendChild(g);
+    gEtiquettes.appendChild(g);
   });
 }
 function formatDates(n){
@@ -736,8 +788,20 @@ document.getElementById('btn-fermer-details').addEventListener('click', ()=>{
 
 /* ===================== Zoom / déplacement ===================== */
 let vue = {s:1, tx:500, ty:400};
+let dernierZoomEtiquettes = null;
+let minuteurEtiquettes = null;
+function planifierMiseAJourEtiquettes(){
+  if(minuteurEtiquettes) clearTimeout(minuteurEtiquettes);
+  minuteurEtiquettes = setTimeout(()=>{
+    minuteurEtiquettes = null;
+    if(dernierZoomEtiquettes===vue.s) return; // le niveau de zoom n'a pas changé depuis le dernier calcul
+    dernierZoomEtiquettes = vue.s;
+    dessinerEtiquettes();
+  }, 130);
+}
 function appliquerVue(){
   gViewport.setAttribute('transform', `translate(${vue.tx.toFixed(2)} ${vue.ty.toFixed(2)}) scale(${vue.s.toFixed(4)})`);
+  planifierMiseAJourEtiquettes();
 }
 function tailleSVG(){
   const r = svg.getBoundingClientRect();
@@ -749,6 +813,8 @@ function ajusterVue(){
   const s = Math.max(0.15, Math.min(w,h)*0.47/rayonMax);
   vue = {s, tx:w/2, ty:h/2};
   appliquerVue();
+  dernierZoomEtiquettes = vue.s;
+  dessinerEtiquettes();
 }
 function zoomAutour(mx, my, sNouv){
   sNouv = Math.max(0.12, Math.min(6, sNouv));
