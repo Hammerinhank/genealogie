@@ -712,20 +712,7 @@
                       "nom": "Sophie VULLIET",
                       "naissance": "01/12/1957"
                     },
-                    "enfants": [
-                      {
-                        "nom": "Charlotte GASIGLIA",
-                        "naissance": "23/02/1986"
-                      },
-                      {
-                        "nom": "Nicolas GASIGLIA",
-                        "naissance": "12/08/1987"
-                      },
-                      {
-                        "nom": "Aurélie GASIGLIA",
-                        "naissance": "28/06/1990"
-                      }
-                    ]
+                    "enfants": []
                   },
                   {
                     "id": "B.5",
@@ -775,25 +762,16 @@
                         "naissance": "22/04/1957",
                         "enfants": [
                           {
-                            "nom": "Charlotte",
-                            "naissance": "",
-                            "enfants": [],
-                            "deces": "",
-                            "conjoint": {
-                              "nom": "Remi"
-                            }
+                            "nom": "Charlotte GASIGLIA",
+                            "naissance": "23/02/1986"
                           },
                           {
-                            "nom": "Nicolas",
-                            "naissance": "",
-                            "enfants": [],
-                            "deces": ""
+                            "nom": "Nicolas GASIGLIA",
+                            "naissance": "12/08/1987"
                           },
                           {
-                            "nom": "Aurélie",
-                            "naissance": "",
-                            "enfants": [],
-                            "deces": ""
+                            "nom": "Aurélie GASIGLIA",
+                            "naissance": "28/06/1990"
                           },
                           {
                             "nom": "Chloé",
