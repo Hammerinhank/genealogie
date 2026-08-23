@@ -209,6 +209,20 @@
   .ligne-arbre .action{background:none;border:none;color:var(--sepia-att);cursor:pointer;font-size:.95rem;
     padding:.15rem .3rem;flex:0 0 auto;}
   .ligne-arbre .action.supprimer{color:var(--danger);}
+
+  /* ---- Liste des généalogies ---- */
+  .ligne-genealogie{display:flex;align-items:center;gap:.4rem;padding:.4rem .3rem;border-radius:8px;}
+  .ligne-genealogie.active{background:var(--parchemin-ombre);}
+  .ligne-genealogie .choisir-genealogie{
+    flex:1 1 auto;min-width:0;text-align:left;background:none;border:none;cursor:pointer;
+    padding:.2rem .3rem;color:var(--sepia);font-family:inherit;
+  }
+  .ligne-genealogie .nom-genealogie{font-size:.88rem;display:block;}
+  .ligne-genealogie.active .nom-genealogie{font-weight:600;}
+  .ligne-genealogie .fichier-genealogie{font-size:.7rem;color:var(--sepia-att);font-family:'JetBrains Mono',monospace;}
+  .ligne-genealogie .action{background:none;border:none;color:var(--sepia-att);cursor:pointer;font-size:.9rem;
+    padding:.2rem .35rem;flex:0 0 auto;}
+  .ligne-genealogie .action.supprimer{color:var(--danger);}
   .ligne-arbre.glissee{
     opacity:.5; border-radius:6px;
     background:repeating-linear-gradient(45deg, rgba(182,144,90,.22), rgba(182,144,90,.22) 7px, transparent 7px, transparent 14px);
@@ -250,10 +264,11 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V15</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V16</button>
   </header>
 
   <div class="barre-outils">
+    <button class="btn accent" id="btn-genealogies">📚 Généalogies</button>
     <button class="btn accent" id="btn-exemple">Exemple</button>
     <button class="btn" id="btn-importer">Importer JSON</button>
     <input type="file" id="fichier-import" accept="application/json,.json" style="display:none">
@@ -380,9 +395,6 @@
       <label>Nom du dépôt
         <input class="champ-clair" id="gh-depot" placeholder="genealogie">
       </label>
-      <label>Fichier
-        <input class="champ-clair" id="gh-fichier" placeholder="genealogie.json">
-      </label>
       <label>Jeton d'accès personnel (PAT)
         <input class="champ-clair" id="gh-jeton" type="password" placeholder="ghp_…">
       </label>
@@ -397,9 +409,41 @@
     </div>
     <div id="gh-statut" class="aide-format"></div>
     <div class="aide-format">
-      Le jeton reste uniquement dans le stockage local de ce navigateur (jamais envoyé ailleurs qu'à l'API
-      GitHub). Il doit avoir la portée <code>repo</code>. Si le dépôt indiqué n'existe pas encore, l'app tente
-      de le créer automatiquement — cela ne fonctionne que si « Propriétaire » est ton propre compte GitHub.
+      Propriétaire, dépôt et jeton sont communs à toutes tes généalogies — chacune a son propre fichier
+      dans ce même dépôt (à choisir depuis « 📚 Généalogies »). Le jeton reste uniquement dans le stockage
+      local de ce navigateur (jamais envoyé ailleurs qu'à l'API GitHub) et doit avoir la portée
+      <code>repo</code>. Si le dépôt indiqué n'existe pas encore, l'app tente de le créer automatiquement —
+      cela ne fonctionne que si « Propriétaire » est ton propre compte GitHub.
+    </div>
+  </div>
+</div>
+
+<!-- Modale : gestion de plusieurs généalogies -->
+<div class="overlay" id="overlay-genealogies">
+  <div class="carte-modale">
+    <button class="fermer" id="fermer-genealogies">✕</button>
+    <h2>Mes généalogies</h2>
+    <div id="liste-genealogies"></div>
+    <div class="aide-format" id="aucune-genealogie" style="display:none;">
+      Aucune généalogie enregistrée pour l'instant — commence par en créer une ci-dessous, ou utilise
+      « Exemple » / « Importer JSON » puis reviens ici pour l'enregistrer dans la liste.
+    </div>
+    <div class="grp-vert" style="margin-top:.8rem;">
+      <label id="lbl-genealogie-nom">Nouvelle généalogie
+        <input class="champ-clair" id="genealogie-nom" placeholder="ex. Famille Dupont">
+      </label>
+      <label>Fichier GitHub associé
+        <input class="champ-clair" id="genealogie-fichier" placeholder="genealogie-dupont.json">
+      </label>
+    </div>
+    <div class="actions-modale">
+      <button class="btn accent" id="btn-genealogie-valider">+ Créer</button>
+      <button class="btn" id="btn-genealogie-annuler-edition" style="display:none;">Annuler la modification</button>
+    </div>
+    <div class="aide-format">
+      Retirer une généalogie de cette liste ne supprime pas son fichier sur GitHub — elle disparaît juste
+      d'ici. Renommer le fichier associé change seulement quel fichier l'app ira lire/écrire ensuite ; ça
+      ne renomme rien sur GitHub.
     </div>
   </div>
 </div>
@@ -496,8 +540,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V15";
+const VERSION = "V16";
 const HISTORIQUE_VERSIONS = [
+  { version:"V16", date:"22/08/2026", notes:"Ajout de la gestion de plusieurs généalogies (bouton « 📚 Généalogies »), chacune avec son propre fichier JSON sur GitHub — propriétaire, dépôt et jeton restent communs, mais chaque généalogie a son nom de fichier. On peut en créer (nom + fichier associé), basculer entre elles, les renommer ou les retirer de la liste (sans toucher à leur fichier GitHub). Chacune garde une copie locale (cache navigateur) pour basculer instantanément sans repasser par GitHub à chaque fois ; changer de généalogie ferme et enregistre d'abord l'arborescence si elle était ouverte, pour ne rien perdre. Au démarrage, l'app reprend automatiquement la dernière généalogie active si elle a une copie locale. Migration automatique : si un fichier GitHub unique était déjà configuré (versions précédentes), il devient la première entrée de la liste." },
   { version:"V15", date:"22/08/2026", notes:"Ajout d'une petite icône ✕ à droite du champ Nom, dans la fiche d'édition d'une personne, pour vider ce champ en un geste." },
   { version:"V14", date:"22/08/2026", notes:"Ajout, en bas à droite de la fiche d'édition d'une personne, de deux boutons de navigation : « ➕ Ajouter un enfant » (crée une nouvelle personne comme enfant de celle affichée et bascule directement sur sa fiche pour la renseigner) et « ⬆ Parent » (remonte à la fiche du parent de la personne affichée ; désactivé sur la racine, qui n'en a pas). Dans les deux cas, une éventuelle saisie en cours sur la fiche actuelle est automatiquement enregistrée avant de naviguer, pour ne rien perdre en construisant l'arbre de proche en proche." },
   { version:"V13", date:"22/08/2026", notes:"Le champ Notes de la fenêtre d'édition d'une personne récupérait par erreur une règle de style destinée au gros éditeur JSON (hauteur minimale de 40% de l'écran, redimensionnable à la main) — il a désormais une hauteur fixe et modeste, non redimensionnable. La fenêtre d'édition elle-même a été restructurée : seule la liste des champs défile désormais, les boutons Valider/Annuler restent toujours visibles en bas. Enfin, la hauteur maximale de toutes les fenêtres se recalcule sur la zone réellement visible de l'écran (via visualViewport) plutôt que sur la hauteur totale : sur iPhone, quand le clavier s'ouvre, la fenêtre se redimensionne pour ne jamais passer derrière lui." },
@@ -1050,6 +1095,7 @@ function chargerDonnees(obj, ajusterVueApres){
   redessiner();
   redessinerLegende();
   if(ajusterVueApres) ajusterVue();
+  sauvegarderCacheGenealogieActive();
 }
 document.getElementById('btn-exemple').addEventListener('click', ()=>{
   chargerDonnees(donneesExemple(), true);
@@ -1076,7 +1122,7 @@ document.getElementById('btn-exporter').addEventListener('click', ()=>{
   const blob = new Blob([JSON.stringify(nettoyerPourExport(donnees), null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'genealogie.json'; a.click();
+  a.href = url; a.download = fichierGenealogieActive(); a.click();
   URL.revokeObjectURL(url);
 });
 
@@ -1136,9 +1182,197 @@ document.getElementById('btn-confirm-non').addEventListener('click', ()=>{
 overlayConfirm.addEventListener('click', (e)=>{ if(e.target===overlayConfirm) document.getElementById('btn-confirm-non').click(); });
 
 /* ===================== Synchronisation GitHub ===================== */
+/* ===================== Registre de plusieurs généalogies ===================== */
+/* Chaque généalogie = {id, nom, fichier}. Propriétaire/dépôt/jeton restent communs (réglages GitHub) ;
+   seul le nom de fichier change d'une généalogie à l'autre, dans ce même dépôt. Un cache local par
+   généalogie (localStorage) permet de basculer instantanément sans repasser par GitHub à chaque fois. */
+const CLE_LISTE_GENEALOGIES = 'eventail_genealogie_liste';
+const CLE_GENEALOGIE_ACTIVE = 'eventail_genealogie_active';
+
+function chargerListeGenealogies(){
+  try{
+    const brut = localStorage.getItem(CLE_LISTE_GENEALOGIES);
+    const liste = brut ? JSON.parse(brut) : [];
+    return Array.isArray(liste) ? liste : [];
+  }catch(e){ return []; }
+}
+function enregistrerListeGenealogies(liste){ localStorage.setItem(CLE_LISTE_GENEALOGIES, JSON.stringify(liste)); }
+function idGenealogieActive(){ return localStorage.getItem(CLE_GENEALOGIE_ACTIVE) || null; }
+function definirGenealogieActive(id){
+  if(id) localStorage.setItem(CLE_GENEALOGIE_ACTIVE, id);
+  else localStorage.removeItem(CLE_GENEALOGIE_ACTIVE);
+}
+function genealogieParId(id){ return chargerListeGenealogies().find(g=>g.id===id) || null; }
+function fichierGenealogieActive(){
+  const g = genealogieParId(idGenealogieActive());
+  return g ? g.fichier : 'genealogie.json';
+}
+function cleCacheGenealogie(id){ return 'eventail_genealogie_donnees_'+id; }
+function chargerCacheGenealogie(id){
+  try{
+    const brut = localStorage.getItem(cleCacheGenealogie(id));
+    return brut ? JSON.parse(brut) : null;
+  }catch(e){ return null; }
+}
+function enregistrerCacheGenealogie(id, obj){
+  try{ localStorage.setItem(cleCacheGenealogie(id), JSON.stringify(nettoyerPourExport(obj))); }catch(e){}
+}
+function supprimerCacheGenealogie(id){ localStorage.removeItem(cleCacheGenealogie(id)); }
+function sauvegarderCacheGenealogieActive(){
+  const id = idGenealogieActive();
+  if(id && donnees) enregistrerCacheGenealogie(id, donnees);
+}
+function genererIdGenealogie(nom){
+  const base = nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'genealogie';
+  let id = base, n = 2;
+  const liste = chargerListeGenealogies();
+  while(liste.some(g=>g.id===id)){ id = base+'-'+n; n++; }
+  return id;
+}
+/* Reprend en douceur l'usage GitHub mono-fichier des versions précédentes : si la liste est vide mais
+   qu'un fichier GitHub était déjà configuré, en fait la première entrée de la liste. */
+function migrerVersListeGenealogies(){
+  if(chargerListeGenealogies().length) return;
+  let ancienFichier = null;
+  try{
+    const brut = localStorage.getItem(CLE_GITHUB);
+    if(brut){ const c = JSON.parse(brut); if(c && c.fichier) ancienFichier = c.fichier; }
+  }catch(e){}
+  if(ancienFichier){
+    const id = genererIdGenealogie('Ma généalogie');
+    enregistrerListeGenealogies([{id, nom:'Ma généalogie', fichier:ancienFichier}]);
+    definirGenealogieActive(id);
+  }
+}
+
+const overlayGenealogies = document.getElementById('overlay-genealogies');
+let idGenealogieEnEdition = null; // non-null quand le formulaire du bas édite une entrée existante plutôt que d'en créer une
+
+function redessinerListeGenealogies(){
+  const liste = chargerListeGenealogies();
+  const actif = idGenealogieActive();
+  const conteneur = document.getElementById('liste-genealogies');
+  conteneur.innerHTML = '';
+  document.getElementById('aucune-genealogie').style.display = liste.length ? 'none' : 'block';
+  liste.forEach(g=>{
+    const ligne = document.createElement('div');
+    ligne.className = 'ligne-genealogie'+(g.id===actif?' active':'');
+
+    const choisir = document.createElement('button');
+    choisir.className = 'choisir-genealogie';
+    choisir.innerHTML = `<span class="nom-genealogie"></span><span class="fichier-genealogie"></span>`;
+    choisir.querySelector('.nom-genealogie').textContent = (g.id===actif?'● ':'')+g.nom;
+    choisir.querySelector('.fichier-genealogie').textContent = g.fichier;
+    choisir.addEventListener('click', ()=>basculerGenealogie(g.id));
+    ligne.appendChild(choisir);
+
+    const btnEditer = document.createElement('button');
+    btnEditer.className = 'action'; btnEditer.textContent = '✏️'; btnEditer.title = 'Renommer';
+    btnEditer.addEventListener('click', ()=>{
+      idGenealogieEnEdition = g.id;
+      document.getElementById('lbl-genealogie-nom').firstChild.textContent = 'Renommer « '+g.nom+' »';
+      document.getElementById('genealogie-nom').value = g.nom;
+      document.getElementById('genealogie-fichier').value = g.fichier;
+      document.getElementById('btn-genealogie-valider').textContent = '✓ Enregistrer';
+      document.getElementById('btn-genealogie-annuler-edition').style.display = '';
+      document.getElementById('genealogie-nom').focus();
+    });
+    ligne.appendChild(btnEditer);
+
+    const btnSupprimer = document.createElement('button');
+    btnSupprimer.className = 'action supprimer'; btnSupprimer.textContent = '🗑'; btnSupprimer.title = 'Retirer de la liste';
+    btnSupprimer.addEventListener('click', async ()=>{
+      const ok = await demanderConfirmation('Retirer cette généalogie',
+        `Retirer « ${g.nom} » de la liste ? Son fichier ne sera pas supprimé sur GitHub.`);
+      if(!ok) return;
+      const nouvelleListe = chargerListeGenealogies().filter(x=>x.id!==g.id);
+      enregistrerListeGenealogies(nouvelleListe);
+      supprimerCacheGenealogie(g.id);
+      if(idGenealogieActive()===g.id){
+        definirGenealogieActive(null);
+        if(nouvelleListe.length) basculerGenealogie(nouvelleListe[0].id);
+      }
+      redessinerListeGenealogies();
+    });
+    ligne.appendChild(btnSupprimer);
+
+    conteneur.appendChild(ligne);
+  });
+}
+
+function reinitialiserFormulaireGenealogie(){
+  idGenealogieEnEdition = null;
+  document.getElementById('lbl-genealogie-nom').firstChild.textContent = 'Nouvelle généalogie';
+  document.getElementById('genealogie-nom').value = '';
+  document.getElementById('genealogie-fichier').value = '';
+  document.getElementById('btn-genealogie-valider').textContent = '+ Créer';
+  document.getElementById('btn-genealogie-annuler-edition').style.display = 'none';
+}
+
+/* Change la généalogie active : met en cache l'ancienne (filet de sécurité), ferme l'arborescence si
+   elle est ouverte (pour ne pas laisser de modifications non enregistrées derrière), puis charge la
+   nouvelle depuis son cache local (ou un squelette vierge si elle n'en a pas encore). */
+async function basculerGenealogie(id){
+  if(id===idGenealogieActive()) { overlayGenealogies.classList.remove('visible'); return; }
+  sauvegarderCacheGenealogieActive();
+  if(overlayArbre.classList.contains('visible')){
+    await fermerArborescenceEtEnregistrer();
+  }
+  definirGenealogieActive(id);
+  const g = genealogieParId(id);
+  const enCache = chargerCacheGenealogie(id);
+  if(enCache){
+    chargerDonnees(enCache, true);
+  }else{
+    chargerDonnees({ titre: g ? g.nom : 'Nouvelle généalogie', edition:'', racine:{nom:'Nouvelle personne', naissance:'', enfants:[]} }, true);
+    if(g) afficherToast(`Pas de copie locale pour « ${g.nom} » — utilise GitHub → Charger depuis GitHub si elle y existe déjà`);
+  }
+  redessinerListeGenealogies();
+  overlayGenealogies.classList.remove('visible');
+}
+
+document.getElementById('btn-genealogies').addEventListener('click', ()=>{
+  reinitialiserFormulaireGenealogie();
+  redessinerListeGenealogies();
+  overlayGenealogies.classList.add('visible');
+});
+document.getElementById('fermer-genealogies').addEventListener('click', ()=>overlayGenealogies.classList.remove('visible'));
+document.getElementById('btn-genealogie-annuler-edition').addEventListener('click', reinitialiserFormulaireGenealogie);
+document.getElementById('btn-genealogie-valider').addEventListener('click', ()=>{
+  const nom = document.getElementById('genealogie-nom').value.trim();
+  if(!nom) return;
+  const liste = chargerListeGenealogies();
+  if(idGenealogieEnEdition){
+    const entree = liste.find(g=>g.id===idGenealogieEnEdition);
+    if(entree){
+      entree.nom = nom;
+      entree.fichier = document.getElementById('genealogie-fichier').value.trim() || entree.fichier;
+      enregistrerListeGenealogies(liste);
+      if(entree.id===idGenealogieActive() && donnees) donnees.titre = nom;
+      document.getElementById('titre-app').textContent = donnees.titre || nom;
+    }
+    reinitialiserFormulaireGenealogie();
+    redessinerListeGenealogies();
+  }else{
+    const id = genererIdGenealogie(nom);
+    const fichier = document.getElementById('genealogie-fichier').value.trim() || ('genealogie-'+id+'.json');
+    liste.push({id, nom, fichier});
+    enregistrerListeGenealogies(liste);
+    const nouvelleDonnees = { titre: nom, edition:'', racine:{nom:'Nouvelle personne', naissance:'', enfants:[]} };
+    enregistrerCacheGenealogie(id, nouvelleDonnees);
+    sauvegarderCacheGenealogieActive();
+    definirGenealogieActive(id);
+    chargerDonnees(nouvelleDonnees, true);
+    reinitialiserFormulaireGenealogie();
+    redessinerListeGenealogies();
+    overlayGenealogies.classList.remove('visible');
+  }
+});
+
 const CLE_GITHUB = 'eventail_genealogie_github';
 function chargerConfigGithub(){
-  const defaut = {proprietaire:'Hammerinhank', depot:'genealogie', fichier:'genealogie.json', jeton:''};
+  const defaut = {proprietaire:'Hammerinhank', depot:'genealogie', jeton:''};
   try{
     const brut = localStorage.getItem(CLE_GITHUB);
     if(!brut) return defaut;
@@ -1146,7 +1380,6 @@ function chargerConfigGithub(){
     return {
       proprietaire: c.proprietaire || defaut.proprietaire,
       depot: c.depot || defaut.depot,
-      fichier: c.fichier || defaut.fichier,
       jeton: c.jeton || ''
     };
   }catch(e){ return defaut; }
@@ -1156,7 +1389,6 @@ function lireEtEnregistrerChampsGithub(){
   const c = {
     proprietaire: document.getElementById('gh-proprietaire').value.trim() || 'Hammerinhank',
     depot: document.getElementById('gh-depot').value.trim() || 'genealogie',
-    fichier: document.getElementById('gh-fichier').value.trim() || 'genealogie.json',
     jeton: document.getElementById('gh-jeton').value.trim()
   };
   enregistrerConfigGithub(c);
@@ -1178,8 +1410,9 @@ async function apiGithub(chemin, options){
 async function chargerDepuisGithub(){
   const c = chargerConfigGithub();
   if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
-  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(c.fichier)}`);
-  if(rep.status===404) throw new Error(`fichier ${c.fichier} introuvable dans ${c.proprietaire}/${c.depot}`);
+  const fichier = fichierGenealogieActive();
+  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`);
+  if(rep.status===404) throw new Error(`fichier ${fichier} introuvable dans ${c.proprietaire}/${c.depot}`);
   if(!rep.ok) throw new Error('erreur GitHub ('+rep.status+')');
   const data = await rep.json();
   const contenu = b64DecodeUnicode((data.content||'').replace(/\n/g,''));
@@ -1191,6 +1424,7 @@ async function chargerDepuisGithub(){
 async function enregistrerSurGithub(){
   const c = chargerConfigGithub();
   if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
+  const fichier = fichierGenealogieActive();
 
   const repDepot = await apiGithub(`/repos/${c.proprietaire}/${c.depot}`);
   if(repDepot.status===404){
@@ -1207,12 +1441,12 @@ async function enregistrerSurGithub(){
 
   const contenuB64 = b64EncodeUnicode(JSON.stringify(nettoyerPourExport(donnees), null, 2));
   let sha;
-  const repExistant = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(c.fichier)}`);
+  const repExistant = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`);
   if(repExistant.ok){ sha = (await repExistant.json()).sha; }
 
   const corps = { message:'Mise à jour de la généalogie ('+new Date().toLocaleString('fr-FR')+')', content:contenuB64 };
   if(sha) corps.sha = sha;
-  const repEcriture = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(c.fichier)}`, {
+  const repEcriture = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`, {
     method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
   });
   if(!repEcriture.ok){
@@ -1220,6 +1454,7 @@ async function enregistrerSurGithub(){
     try{ detail = (await repEcriture.json()).message || ''; }catch(e){}
     throw new Error('échec de l\'écriture ('+repEcriture.status+') '+detail);
   }
+  sauvegarderCacheGenealogieActive();
 }
 
 const overlayGithub = document.getElementById('overlay-github');
@@ -1227,9 +1462,11 @@ document.getElementById('btn-github').addEventListener('click', ()=>{
   const c = chargerConfigGithub();
   document.getElementById('gh-proprietaire').value = c.proprietaire;
   document.getElementById('gh-depot').value = c.depot;
-  document.getElementById('gh-fichier').value = c.fichier;
   document.getElementById('gh-jeton').value = c.jeton;
-  document.getElementById('gh-statut').textContent = '';
+  const g = genealogieParId(idGenealogieActive());
+  document.getElementById('gh-statut').textContent = g
+    ? `Généalogie active : « ${g.nom} » → fichier ${g.fichier}`
+    : 'Aucune généalogie active — choisis-en une depuis « 📚 Généalogies ».';
   overlayGithub.classList.add('visible');
 });
 document.getElementById('fermer-github').addEventListener('click', ()=>overlayGithub.classList.remove('visible'));
@@ -1246,19 +1483,22 @@ document.getElementById('btn-gh-oublier').addEventListener('click', async ()=>{
 });
 document.getElementById('btn-gh-charger').addEventListener('click', async ()=>{
   lireEtEnregistrerChampsGithub();
+  if(!idGenealogieActive()){ document.getElementById('gh-statut').textContent = 'Choisis d\'abord une généalogie active (📚 Généalogies).'; return; }
   document.getElementById('gh-statut').textContent = 'Chargement…';
   try{
     const obj = await chargerDepuisGithub();
     chargerDonnees(obj, true);
-    document.getElementById('gh-statut').textContent = 'Chargé depuis GitHub.';
+    sauvegarderCacheGenealogieActive();
+    document.getElementById('gh-statut').textContent = 'Chargé depuis GitHub ('+fichierGenealogieActive()+').';
   }catch(err){ document.getElementById('gh-statut').textContent = 'Erreur : '+err.message; }
 });
 document.getElementById('btn-gh-sauver').addEventListener('click', async ()=>{
   lireEtEnregistrerChampsGithub();
+  if(!idGenealogieActive()){ document.getElementById('gh-statut').textContent = 'Choisis d\'abord une généalogie active (📚 Généalogies).'; return; }
   document.getElementById('gh-statut').textContent = 'Envoi…';
   try{
     await enregistrerSurGithub();
-    document.getElementById('gh-statut').textContent = 'Enregistré sur GitHub.';
+    document.getElementById('gh-statut').textContent = 'Enregistré sur GitHub ('+fichierGenealogieActive()+').';
   }catch(err){ document.getElementById('gh-statut').textContent = 'Erreur : '+err.message; }
 });
 
@@ -1638,6 +1878,7 @@ function appliquerFormulairePersonne(){
   }else{
     construireLayout(); redessiner(); redessinerLegende(); remplirSelecteurProfondeur();
   }
+  sauvegarderCacheGenealogieActive();
   return n;
 }
 
@@ -1695,16 +1936,17 @@ window.addEventListener('keydown', (e)=>{
     annulerDerniereAction();
   }
 });
-document.getElementById('btn-fermer-arbre').addEventListener('click', async ()=>{
+async function fermerArborescenceEtEnregistrer(){
   window.removeEventListener('beforeunload', gardeAvantFermeture);
   construireLayout(); redessiner(); redessinerLegende(); remplirSelecteurProfondeur();
   overlayArbre.classList.remove('visible');
   if(arbreModifie){
+    sauvegarderCacheGenealogieActive();
     const conf = chargerConfigGithub();
     if(conf.jeton){
       try{
         await enregistrerSurGithub();
-        afficherMessage('Enregistré', `Les modifications ont été enregistrées sur GitHub (${conf.proprietaire}/${conf.depot}).`);
+        afficherMessage('Enregistré', `Les modifications ont été enregistrées sur GitHub (${conf.proprietaire}/${conf.depot}/${fichierGenealogieActive()}).`);
       }catch(err){
         afficherMessage('Échec de l\'enregistrement GitHub',
           `Les modifications restent dans l'application mais n'ont pas pu être envoyées à GitHub : ${err.message}. Utilise « Exporter JSON » pour ne pas les perdre.`);
@@ -1715,7 +1957,8 @@ document.getElementById('btn-fermer-arbre').addEventListener('click', async ()=>
     }
     arbreModifie = false;
   }
-});
+}
+document.getElementById('btn-fermer-arbre').addEventListener('click', fermerArborescenceEtEnregistrer);
 
 /* ===================== Modales génériques ===================== */
 function afficherMessage(titre, html){
@@ -1735,7 +1978,7 @@ document.getElementById('btn-version').addEventListener('click', ()=>{
 document.getElementById('fermer-version').addEventListener('click', ()=>overlayVersion.classList.remove('visible'));
 
 /* fermeture au clic sur le fond des modales */
-[overlayEditer, overlayVersion, overlayGithub, document.getElementById('overlay-message')].forEach(ov=>{
+[overlayEditer, overlayVersion, overlayGithub, overlayGenealogies, document.getElementById('overlay-message')].forEach(ov=>{
   ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('visible'); });
 });
 
@@ -1744,7 +1987,12 @@ window.addEventListener('resize', ()=>{ /* la vue courante (pan/zoom) est conser
 
 /* ===================== Démarrage ===================== */
 document.getElementById('btn-version').textContent = VERSION;
-chargerDonnees(donneesExemple(), true);
+migrerVersListeGenealogies();
+(function demarrer(){
+  const idActif = idGenealogieActive();
+  const enCache = idActif ? chargerCacheGenealogie(idActif) : null;
+  chargerDonnees(enCache || donneesExemple(), true);
+})();
 window.addEventListener('load', ajusterVue);
 
 })();
