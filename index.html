@@ -264,7 +264,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V16</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V17</button>
   </header>
 
   <div class="barre-outils">
@@ -273,6 +273,7 @@
     <button class="btn" id="btn-importer">Importer JSON</button>
     <input type="file" id="fichier-import" accept="application/json,.json" style="display:none">
     <button class="btn" id="btn-exporter">Exporter JSON</button>
+    <button class="btn" id="btn-sauvegarde" title="Télécharge une copie horodatée (et l'envoie aussi sur GitHub si configuré)">💾 Sauvegarde</button>
     <button class="btn" id="btn-editer">Éditer les données</button>
     <button class="btn" id="btn-github">GitHub</button>
     <button class="btn accent" id="btn-arborescence">Arborescence</button>
@@ -510,6 +511,7 @@
         ⚠ Modifications non enregistrées — seront enregistrées à la fermeture de cette page
       </div>
       <button class="btn" id="btn-undo-arbre" disabled>↶ Annuler</button>
+      <button class="btn" id="btn-sauvegarde-arbre" title="Sauvegarde horodatée immédiate">💾</button>
       <button class="btn accent" id="btn-fermer-arbre">Fermer et enregistrer</button>
     </div>
     <div class="corps-arbre" id="corps-arbre"></div>
@@ -540,8 +542,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V16";
+const VERSION = "V17";
 const HISTORIQUE_VERSIONS = [
+  { version:"V17", date:"23/08/2026", notes:"Ajout d'un bouton « 💾 Sauvegarde » (barre d'outils et en-tête de l'arborescence, donc disponible à tout moment) qui télécharge immédiatement une copie horodatée — nom de fichier de la généalogie suivi de la date et l'heure, ex. genealogie-dupont-2026-08-23_11-45-32.json. Si un jeton GitHub est configuré, cette même copie est aussi envoyée sur GitHub sous ce nom, en plus (pas à la place) du fichier courant de la généalogie." },
   { version:"V16", date:"22/08/2026", notes:"Ajout de la gestion de plusieurs généalogies (bouton « 📚 Généalogies »), chacune avec son propre fichier JSON sur GitHub — propriétaire, dépôt et jeton restent communs, mais chaque généalogie a son nom de fichier. On peut en créer (nom + fichier associé), basculer entre elles, les renommer ou les retirer de la liste (sans toucher à leur fichier GitHub). Chacune garde une copie locale (cache navigateur) pour basculer instantanément sans repasser par GitHub à chaque fois ; changer de généalogie ferme et enregistre d'abord l'arborescence si elle était ouverte, pour ne rien perdre. Au démarrage, l'app reprend automatiquement la dernière généalogie active si elle a une copie locale. Migration automatique : si un fichier GitHub unique était déjà configuré (versions précédentes), il devient la première entrée de la liste." },
   { version:"V15", date:"22/08/2026", notes:"Ajout d'une petite icône ✕ à droite du champ Nom, dans la fiche d'édition d'une personne, pour vider ce champ en un geste." },
   { version:"V14", date:"22/08/2026", notes:"Ajout, en bas à droite de la fiche d'édition d'une personne, de deux boutons de navigation : « ➕ Ajouter un enfant » (crée une nouvelle personne comme enfant de celle affichée et bascule directement sur sa fiche pour la renseigner) et « ⬆ Parent » (remonte à la fiche du parent de la personne affichée ; désactivé sur la racine, qui n'en a pas). Dans les deux cas, une éventuelle saisie en cours sur la fiche actuelle est automatiquement enregistrée avant de naviguer, pour ne rien perdre en construisant l'arbre de proche en proche." },
@@ -1126,6 +1129,42 @@ document.getElementById('btn-exporter').addEventListener('click', ()=>{
   URL.revokeObjectURL(url);
 });
 
+/* sauvegarde horodatée : téléchargement local systématique, plus envoi sur GitHub sous ce même nom
+   (fichier séparé du fichier « courant ») si un jeton est configuré — disponible à tout moment,
+   y compris depuis l'arborescence en cours d'édition. */
+function nomFichierSauvegarde(){
+  const base = fichierGenealogieActive();
+  const point = base.lastIndexOf('.');
+  const racine = point>=0 ? base.slice(0,point) : base;
+  const ext = point>=0 ? base.slice(point) : '.json';
+  const d = new Date();
+  const p2 = (n)=>String(n).padStart(2,'0');
+  const horodatage = `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}_${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}`;
+  return `${racine}-${horodatage}${ext}`;
+}
+async function faireSauvegarde(){
+  const nomFichier = nomFichierSauvegarde();
+  const blob = new Blob([JSON.stringify(nettoyerPourExport(donnees), null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nomFichier; a.click();
+  URL.revokeObjectURL(url);
+
+  const conf = chargerConfigGithub();
+  if(conf.jeton){
+    try{
+      await enregistrerSurGithub(nomFichier);
+      afficherToast(`Sauvegarde téléchargée et envoyée sur GitHub (${nomFichier})`);
+    }catch(err){
+      afficherToast(`Sauvegarde téléchargée — l'envoi sur GitHub a échoué (${err.message})`);
+    }
+  }else{
+    afficherToast(`Sauvegarde téléchargée (${nomFichier})`);
+  }
+}
+document.getElementById('btn-sauvegarde').addEventListener('click', faireSauvegarde);
+document.getElementById('btn-sauvegarde-arbre').addEventListener('click', faireSauvegarde);
+
 /* édition JSON */
 const overlayEditer = document.getElementById('overlay-editer');
 document.getElementById('btn-editer').addEventListener('click', ()=>{
@@ -1421,10 +1460,10 @@ async function chargerDepuisGithub(){
   return obj;
 }
 
-async function enregistrerSurGithub(){
+async function enregistrerSurGithub(nomFichierPersonnalise){
   const c = chargerConfigGithub();
   if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
-  const fichier = fichierGenealogieActive();
+  const fichier = nomFichierPersonnalise || fichierGenealogieActive();
 
   const repDepot = await apiGithub(`/repos/${c.proprietaire}/${c.depot}`);
   if(repDepot.status===404){
@@ -1444,7 +1483,7 @@ async function enregistrerSurGithub(){
   const repExistant = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`);
   if(repExistant.ok){ sha = (await repExistant.json()).sha; }
 
-  const corps = { message:'Mise à jour de la généalogie ('+new Date().toLocaleString('fr-FR')+')', content:contenuB64 };
+  const corps = { message:(nomFichierPersonnalise?'Sauvegarde horodatée (':'Mise à jour de la généalogie (')+new Date().toLocaleString('fr-FR')+')', content:contenuB64 };
   if(sha) corps.sha = sha;
   const repEcriture = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`, {
     method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
