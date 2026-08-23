@@ -223,6 +223,12 @@
   .ligne-genealogie .action{background:none;border:none;color:var(--sepia-att);cursor:pointer;font-size:.9rem;
     padding:.2rem .35rem;flex:0 0 auto;}
   .ligne-genealogie .action.supprimer{color:var(--danger);}
+
+  /* ---- Liste des sauvegardes ---- */
+  .ligne-sauvegarde{display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+    padding:.5rem .3rem;border-bottom:1px solid var(--parchemin-ombre);}
+  .ligne-sauvegarde .date-sauvegarde{font-size:.82rem;color:var(--sepia);font-family:'JetBrains Mono',monospace;}
+  .ligne-sauvegarde .btn{font-size:.76rem;padding:.35rem .6rem;flex:0 0 auto;}
   .ligne-arbre.glissee{
     opacity:.5; border-radius:6px;
     background:repeating-linear-gradient(45deg, rgba(182,144,90,.22), rgba(182,144,90,.22) 7px, transparent 7px, transparent 14px);
@@ -264,7 +270,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V17</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V18</button>
   </header>
 
   <div class="barre-outils">
@@ -273,7 +279,7 @@
     <button class="btn" id="btn-importer">Importer JSON</button>
     <input type="file" id="fichier-import" accept="application/json,.json" style="display:none">
     <button class="btn" id="btn-exporter">Exporter JSON</button>
-    <button class="btn" id="btn-sauvegarde" title="Télécharge une copie horodatée (et l'envoie aussi sur GitHub si configuré)">💾 Sauvegarde</button>
+    <button class="btn" id="btn-sauvegarde" title="Voir les sauvegardes et en faire une nouvelle">💾 Sauvegarde</button>
     <button class="btn" id="btn-editer">Éditer les données</button>
     <button class="btn" id="btn-github">GitHub</button>
     <button class="btn accent" id="btn-arborescence">Arborescence</button>
@@ -502,6 +508,28 @@
   </div>
 </div>
 
+<!-- Modale : sauvegardes horodatées (nouvelle + liste + restauration) -->
+<div class="overlay" id="overlay-sauvegardes">
+  <div class="carte-modale">
+    <button class="fermer" id="fermer-sauvegardes">✕</button>
+    <h2>Sauvegardes</h2>
+    <div class="actions-modale" style="margin-top:0;">
+      <button class="btn accent" id="btn-nouvelle-sauvegarde">+ Nouvelle sauvegarde maintenant</button>
+    </div>
+    <div id="statut-sauvegardes" class="aide-format"></div>
+    <div id="liste-sauvegardes"></div>
+    <div class="aide-format" id="aucune-sauvegarde" style="display:none;">
+      Aucune sauvegarde horodatée trouvée sur GitHub pour cette généalogie.
+    </div>
+    <div class="aide-format">
+      Cette liste vient des fichiers horodatés déjà envoyés sur GitHub pour la généalogie active (un
+      jeton GitHub est nécessaire pour la voir). Restaurer charge la sauvegarde choisie dans l'app, mais
+      ne modifie pas le fichier « courant » sur GitHub tant que tu n'utilises pas « Enregistrer sur GitHub »
+      ensuite. Les sauvegardes téléchargées localement (sans jeton configuré) n'apparaissent pas ici.
+    </div>
+  </div>
+</div>
+
 <!-- Page plein écran : arborescence éditable -->
 <div class="overlay plein" id="overlay-arbre">
   <div class="page-arbre">
@@ -511,7 +539,7 @@
         ⚠ Modifications non enregistrées — seront enregistrées à la fermeture de cette page
       </div>
       <button class="btn" id="btn-undo-arbre" disabled>↶ Annuler</button>
-      <button class="btn" id="btn-sauvegarde-arbre" title="Sauvegarde horodatée immédiate">💾</button>
+      <button class="btn" id="btn-sauvegarde-arbre" title="Sauvegardes">💾</button>
       <button class="btn accent" id="btn-fermer-arbre">Fermer et enregistrer</button>
     </div>
     <div class="corps-arbre" id="corps-arbre"></div>
@@ -542,8 +570,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V17";
+const VERSION = "V18";
 const HISTORIQUE_VERSIONS = [
+  { version:"V18", date:"23/08/2026", notes:"Le bouton « 💾 Sauvegarde » ouvre désormais un panneau au lieu de sauvegarder directement : un bouton « + Nouvelle sauvegarde maintenant » (identique à l'ancien comportement), et en dessous la liste des sauvegardes déjà envoyées sur GitHub pour la généalogie active (triées de la plus récente à la plus ancienne), chacune avec un bouton « ↺ Restaurer ». Restaurer recharge cette version dans l'app après confirmation, sans toucher au fichier « courant » sur GitHub tant qu'on ne l'enregistre pas explicitement ensuite. La liste nécessite un jeton GitHub configuré (les sauvegardes téléchargées localement ne sont pas listables par l'app)." },
   { version:"V17", date:"23/08/2026", notes:"Ajout d'un bouton « 💾 Sauvegarde » (barre d'outils et en-tête de l'arborescence, donc disponible à tout moment) qui télécharge immédiatement une copie horodatée — nom de fichier de la généalogie suivi de la date et l'heure, ex. genealogie-dupont-2026-08-23_11-45-32.json. Si un jeton GitHub est configuré, cette même copie est aussi envoyée sur GitHub sous ce nom, en plus (pas à la place) du fichier courant de la généalogie." },
   { version:"V16", date:"22/08/2026", notes:"Ajout de la gestion de plusieurs généalogies (bouton « 📚 Généalogies »), chacune avec son propre fichier JSON sur GitHub — propriétaire, dépôt et jeton restent communs, mais chaque généalogie a son nom de fichier. On peut en créer (nom + fichier associé), basculer entre elles, les renommer ou les retirer de la liste (sans toucher à leur fichier GitHub). Chacune garde une copie locale (cache navigateur) pour basculer instantanément sans repasser par GitHub à chaque fois ; changer de généalogie ferme et enregistre d'abord l'arborescence si elle était ouverte, pour ne rien perdre. Au démarrage, l'app reprend automatiquement la dernière généalogie active si elle a une copie locale. Migration automatique : si un fichier GitHub unique était déjà configuré (versions précédentes), il devient la première entrée de la liste." },
   { version:"V15", date:"22/08/2026", notes:"Ajout d'une petite icône ✕ à droite du champ Nom, dans la fiche d'édition d'une personne, pour vider ce champ en un geste." },
@@ -1162,8 +1191,102 @@ async function faireSauvegarde(){
     afficherToast(`Sauvegarde téléchargée (${nomFichier})`);
   }
 }
-document.getElementById('btn-sauvegarde').addEventListener('click', faireSauvegarde);
-document.getElementById('btn-sauvegarde-arbre').addEventListener('click', faireSauvegarde);
+
+/* ===================== Panneau des sauvegardes : liste + restauration ===================== */
+const overlaySauvegardes = document.getElementById('overlay-sauvegardes');
+
+function formaterHorodatageSauvegarde(h){
+  const m = h.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+  if(!m) return h;
+  const [,an,mois,jour,hh,mi,ss] = m;
+  return `${jour}/${mois}/${an} à ${hh}:${mi}:${ss}`;
+}
+
+async function listerSauvegardesGithub(){
+  const c = chargerConfigGithub();
+  if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
+  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/`);
+  if(rep.status===404) return [];
+  if(!rep.ok) throw new Error('erreur GitHub ('+rep.status+')');
+  const contenuDossier = await rep.json();
+  const base = fichierGenealogieActive().replace(/\.json$/,'');
+  const motif = new RegExp('^'+base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'-(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.json$');
+  return contenuDossier
+    .filter(f => f.type==='file' && motif.test(f.name))
+    .map(f => ({ nom:f.name, horodatage:f.name.match(motif)[1] }))
+    .sort((a,b)=> b.horodatage.localeCompare(a.horodatage));
+}
+
+async function restaurerSauvegarde(nomFichier){
+  const c = chargerConfigGithub();
+  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(nomFichier)}`);
+  if(!rep.ok) throw new Error('impossible de récupérer ce fichier ('+rep.status+')');
+  const data = await rep.json();
+  const contenu = b64DecodeUnicode((data.content||'').replace(/\n/g,''));
+  const obj = JSON.parse(contenu);
+  if(!obj.racine) throw new Error('JSON invalide (champ "racine" manquant)');
+  return obj;
+}
+
+async function rafraichirListeSauvegardes(){
+  const conteneur = document.getElementById('liste-sauvegardes');
+  const statut = document.getElementById('statut-sauvegardes');
+  const aucune = document.getElementById('aucune-sauvegarde');
+  conteneur.innerHTML = '';
+  aucune.style.display = 'none';
+  const conf = chargerConfigGithub();
+  if(!conf.jeton){
+    statut.textContent = 'Configure un jeton GitHub (bouton « GitHub ») pour voir tes sauvegardes précédentes.';
+    return;
+  }
+  statut.textContent = 'Chargement…';
+  try{
+    const sauvegardes = await listerSauvegardesGithub();
+    statut.textContent = '';
+    if(!sauvegardes.length){ aucune.style.display = 'block'; return; }
+    sauvegardes.forEach(s=>{
+      const ligne = document.createElement('div');
+      ligne.className = 'ligne-sauvegarde';
+      const date = document.createElement('span');
+      date.className = 'date-sauvegarde';
+      date.textContent = formaterHorodatageSauvegarde(s.horodatage);
+      ligne.appendChild(date);
+      const btn = document.createElement('button');
+      btn.className = 'btn'; btn.textContent = '↺ Restaurer';
+      btn.addEventListener('click', ()=>restaurerEtCharger(s.nom, date.textContent));
+      ligne.appendChild(btn);
+      conteneur.appendChild(ligne);
+    });
+  }catch(err){
+    statut.textContent = 'Erreur : '+err.message;
+  }
+}
+
+async function restaurerEtCharger(nomFichier, dateAffichee){
+  const ok = await demanderConfirmation('Restaurer cette sauvegarde',
+    `Restaurer la sauvegarde du ${dateAffichee} ? Cela remplacera les données actuellement affichées. Le fichier « courant » sur GitHub ne sera pas modifié tant que tu n'utilises pas « Enregistrer sur GitHub » ensuite.`);
+  if(!ok) return;
+  try{
+    const obj = await restaurerSauvegarde(nomFichier);
+    chargerDonnees(obj, true);
+    overlaySauvegardes.classList.remove('visible');
+    afficherToast(`Sauvegarde du ${dateAffichee} restaurée`);
+  }catch(err){
+    afficherMessage('Restauration impossible', err.message);
+  }
+}
+
+async function ouvrirSauvegardes(){
+  overlaySauvegardes.classList.add('visible');
+  await rafraichirListeSauvegardes();
+}
+document.getElementById('btn-sauvegarde').addEventListener('click', ouvrirSauvegardes);
+document.getElementById('btn-sauvegarde-arbre').addEventListener('click', ouvrirSauvegardes);
+document.getElementById('fermer-sauvegardes').addEventListener('click', ()=>overlaySauvegardes.classList.remove('visible'));
+document.getElementById('btn-nouvelle-sauvegarde').addEventListener('click', async ()=>{
+  await faireSauvegarde();
+  await rafraichirListeSauvegardes();
+});
 
 /* édition JSON */
 const overlayEditer = document.getElementById('overlay-editer');
@@ -2017,7 +2140,7 @@ document.getElementById('btn-version').addEventListener('click', ()=>{
 document.getElementById('fermer-version').addEventListener('click', ()=>overlayVersion.classList.remove('visible'));
 
 /* fermeture au clic sur le fond des modales */
-[overlayEditer, overlayVersion, overlayGithub, overlayGenealogies, document.getElementById('overlay-message')].forEach(ov=>{
+[overlayEditer, overlayVersion, overlayGithub, overlayGenealogies, overlaySauvegardes, document.getElementById('overlay-message')].forEach(ov=>{
   ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('visible'); });
 });
 
