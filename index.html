@@ -281,7 +281,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V19</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V20</button>
   </header>
 
   <div class="barre-outils">
@@ -547,8 +547,9 @@
         configuré) pour en créer une, elle apparaîtra ici.
       </div>
       <p class="note-sauvegarde">
-        Restaurer charge la sauvegarde choisie dans l'app, sans modifier le fichier « courant » sur
-        GitHub tant que tu n'utilises pas « Enregistrer sur GitHub » ensuite.
+        Chaque sauvegarde est enregistrée dans l'historique du fichier de la généalogie sur GitHub (pas
+        de fichier séparé à gérer). Restaurer charge la version choisie dans l'app, sans rien modifier
+        sur GitHub tant que tu n'utilises pas « Enregistrer sur GitHub » ensuite.
       </p>
     </div>
   </div>
@@ -594,8 +595,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V19";
+const VERSION = "V20";
 const HISTORIQUE_VERSIONS = [
+  { version:"V20", date:"24/08/2026", notes:"Simplification du mécanisme de sauvegarde sur GitHub : abandon de la création d'un fichier séparé par sauvegarde, remplacé par un simple nouveau commit sur le fichier existant de la généalogie, avec pour message « Sauvegarde faite le JJ/MM/AAAA à HH:MM:SS ». La liste du panneau Sauvegardes vient maintenant de l'historique des commits de ce fichier (filtré sur ce message), et restaurer récupère le contenu du fichier tel qu'il était à ce commit précis plutôt que dans un fichier à part. Le téléchargement local (fichier horodaté séparé) est inchangé." },
   { version:"V19", date:"23/08/2026", notes:"Panneau Sauvegardes rendu beaucoup plus clair, à la suite d'un retour montrant qu'il n'était pas compréhensible (une erreur GitHub brute façon « Load failed » s'affichait dès l'ouverture, mélangée avec la fenêtre native de téléchargement, sans explication). Désormais : une phrase d'intro explique ce qu'est une sauvegarde ; deux sections nettement séparées « 📱 Sur cet appareil » (avec une note prévenant qu'une fenêtre de téléchargement va s'ouvrir) et « ☁️ Sur GitHub » ; les messages d'état sont en français clair avec une action à faire (« Configurer GitHub » si aucun jeton, « 🔄 Réessayer » en cas d'échec réseau, avec le détail technique relégué en petit texte discret plutôt qu'affiché comme message principal)." },
   { version:"V18", date:"23/08/2026", notes:"Le bouton « 💾 Sauvegarde » ouvre désormais un panneau au lieu de sauvegarder directement : un bouton « + Nouvelle sauvegarde maintenant » (identique à l'ancien comportement), et en dessous la liste des sauvegardes déjà envoyées sur GitHub pour la généalogie active (triées de la plus récente à la plus ancienne), chacune avec un bouton « ↺ Restaurer ». Restaurer recharge cette version dans l'app après confirmation, sans toucher au fichier « courant » sur GitHub tant qu'on ne l'enregistre pas explicitement ensuite. La liste nécessite un jeton GitHub configuré (les sauvegardes téléchargées localement ne sont pas listables par l'app)." },
   { version:"V17", date:"23/08/2026", notes:"Ajout d'un bouton « 💾 Sauvegarde » (barre d'outils et en-tête de l'arborescence, donc disponible à tout moment) qui télécharge immédiatement une copie horodatée — nom de fichier de la généalogie suivi de la date et l'heure, ex. genealogie-dupont-2026-08-23_11-45-32.json. Si un jeton GitHub est configuré, cette même copie est aussi envoyée sur GitHub sous ce nom, en plus (pas à la place) du fichier courant de la généalogie." },
@@ -1196,18 +1198,28 @@ function nomFichierSauvegarde(){
   const horodatage = `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}_${p2(d.getHours())}-${p2(d.getMinutes())}-${p2(d.getSeconds())}`;
   return `${racine}-${horodatage}${ext}`;
 }
+const PREFIXE_COMMIT_SAUVEGARDE = 'Sauvegarde faite le ';
+function messageCommitSauvegarde(){
+  const d = new Date();
+  const p2 = (n)=>String(n).padStart(2,'0');
+  const dateStr = `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;
+  const heureStr = `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+  return `${PREFIXE_COMMIT_SAUVEGARDE}${dateStr} à ${heureStr}`;
+}
 async function faireSauvegarde(){
-  const nomFichier = nomFichierSauvegarde();
+  /* téléchargement local : fichier horodaté à part, indépendant de GitHub */
   const blob = new Blob([JSON.stringify(nettoyerPourExport(donnees), null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = nomFichier; a.click();
+  a.href = url; a.download = nomFichierSauvegarde(); a.click();
   URL.revokeObjectURL(url);
 
+  /* sur GitHub : pas de fichier séparé — un nouveau commit sur le fichier de la généalogie, avec un
+     message horodaté qui permet de le retrouver dans l'historique */
   const conf = chargerConfigGithub();
   if(conf.jeton){
     try{
-      await enregistrerSurGithub(nomFichier);
+      await enregistrerSurGithub(messageCommitSauvegarde());
       afficherToast('✓ Sauvegarde téléchargée et enregistrée sur GitHub');
     }catch(err){
       afficherToast('✓ Sauvegarde téléchargée — l\'envoi sur GitHub a échoué, réessaie plus tard');
@@ -1218,34 +1230,31 @@ async function faireSauvegarde(){
 }
 
 /* ===================== Panneau des sauvegardes : liste + restauration ===================== */
+/* Une sauvegarde = un commit sur le fichier de la généalogie, avec un message qui commence par
+   « Sauvegarde faite le ... » — la liste vient de l'historique des commits de ce fichier, filtré sur
+   ce préfixe (les enregistrements normaux, au message différent, n'y apparaissent pas). Restaurer
+   récupère le contenu du fichier tel qu'il était à ce commit précis (paramètre ?ref=sha). */
 const overlaySauvegardes = document.getElementById('overlay-sauvegardes');
-
-function formaterHorodatageSauvegarde(h){
-  const m = h.match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
-  if(!m) return h;
-  const [,an,mois,jour,hh,mi,ss] = m;
-  return `${jour}/${mois}/${an} à ${hh}:${mi}:${ss}`;
-}
 
 async function listerSauvegardesGithub(){
   const c = chargerConfigGithub();
   if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
-  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/`);
-  if(rep.status===404) return [];
+  const fichier = fichierGenealogieActive();
+  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/commits?path=${encodeURIComponent(fichier)}&per_page=100`);
+  if(rep.status===404 || rep.status===409) return []; // dépôt ou fichier pas encore créé
   if(!rep.ok) throw new Error('erreur GitHub ('+rep.status+')');
-  const contenuDossier = await rep.json();
-  const base = fichierGenealogieActive().replace(/\.json$/,'');
-  const motif = new RegExp('^'+base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'-(\\d{4}-\\d{2}-\\d{2}_\\d{2}-\\d{2}-\\d{2})\\.json$');
-  return contenuDossier
-    .filter(f => f.type==='file' && motif.test(f.name))
-    .map(f => ({ nom:f.name, horodatage:f.name.match(motif)[1] }))
-    .sort((a,b)=> b.horodatage.localeCompare(a.horodatage));
+  const commits = await rep.json();
+  return commits
+    .filter(c => c.commit && c.commit.message && c.commit.message.startsWith(PREFIXE_COMMIT_SAUVEGARDE))
+    .map(c => ({ sha:c.sha, libelle: c.commit.message.slice(PREFIXE_COMMIT_SAUVEGARDE.length) }));
+  /* déjà triés du plus récent au plus ancien par l'API GitHub elle-même */
 }
 
-async function restaurerSauvegarde(nomFichier){
+async function restaurerSauvegarde(sha){
   const c = chargerConfigGithub();
-  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(nomFichier)}`);
-  if(!rep.ok) throw new Error('impossible de récupérer ce fichier ('+rep.status+')');
+  const fichier = fichierGenealogieActive();
+  const rep = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}?ref=${sha}`);
+  if(!rep.ok) throw new Error('impossible de récupérer cette version ('+rep.status+')');
   const data = await rep.json();
   const contenu = b64DecodeUnicode((data.content||'').replace(/\n/g,''));
   const obj = JSON.parse(contenu);
@@ -1273,7 +1282,7 @@ async function rafraichirListeSauvegardes(){
     });
     return;
   }
-  afficherStatutSauvegarde('attente', 'Recherche des sauvegardes sur GitHub…');
+  afficherStatutSauvegarde('attente', 'Recherche des sauvegardes dans l\'historique GitHub…');
   try{
     const sauvegardes = await listerSauvegardesGithub();
     afficherStatutSauvegarde('', '');
@@ -1283,11 +1292,11 @@ async function rafraichirListeSauvegardes(){
       ligne.className = 'ligne-sauvegarde';
       const date = document.createElement('span');
       date.className = 'date-sauvegarde';
-      date.textContent = formaterHorodatageSauvegarde(s.horodatage);
+      date.textContent = s.libelle;
       ligne.appendChild(date);
       const btn = document.createElement('button');
       btn.className = 'btn'; btn.textContent = '↺ Restaurer cette version';
-      btn.addEventListener('click', ()=>restaurerEtCharger(s.nom, date.textContent));
+      btn.addEventListener('click', ()=>restaurerEtCharger(s.sha, date.textContent));
       ligne.appendChild(btn);
       conteneur.appendChild(ligne);
     });
@@ -1298,12 +1307,12 @@ async function rafraichirListeSauvegardes(){
   }
 }
 
-async function restaurerEtCharger(nomFichier, dateAffichee){
+async function restaurerEtCharger(sha, dateAffichee){
   const ok = await demanderConfirmation('Restaurer cette sauvegarde',
     `Restaurer la version du ${dateAffichee} ? Ce que tu vois actuellement dans l'app sera remplacé par cette sauvegarde. Le fichier « courant » sur GitHub, lui, ne changera pas tant que tu n'utilises pas « Enregistrer sur GitHub » ensuite.`);
   if(!ok) return;
   try{
-    const obj = await restaurerSauvegarde(nomFichier);
+    const obj = await restaurerSauvegarde(sha);
     chargerDonnees(obj, true);
     overlaySauvegardes.classList.remove('visible');
     afficherToast(`Sauvegarde du ${dateAffichee} restaurée`);
@@ -1619,10 +1628,10 @@ async function chargerDepuisGithub(){
   return obj;
 }
 
-async function enregistrerSurGithub(nomFichierPersonnalise){
+async function enregistrerSurGithub(messagePersonnalise){
   const c = chargerConfigGithub();
   if(!c.jeton) throw new Error('aucun jeton GitHub configuré');
-  const fichier = nomFichierPersonnalise || fichierGenealogieActive();
+  const fichier = fichierGenealogieActive();
 
   const repDepot = await apiGithub(`/repos/${c.proprietaire}/${c.depot}`);
   if(repDepot.status===404){
@@ -1642,7 +1651,7 @@ async function enregistrerSurGithub(nomFichierPersonnalise){
   const repExistant = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`);
   if(repExistant.ok){ sha = (await repExistant.json()).sha; }
 
-  const corps = { message:(nomFichierPersonnalise?'Sauvegarde horodatée (':'Mise à jour de la généalogie (')+new Date().toLocaleString('fr-FR')+')', content:contenuB64 };
+  const corps = { message: messagePersonnalise || ('Mise à jour de la généalogie ('+new Date().toLocaleString('fr-FR')+')'), content:contenuB64 };
   if(sha) corps.sha = sha;
   const repEcriture = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`, {
     method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
