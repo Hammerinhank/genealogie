@@ -281,7 +281,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V21</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V22</button>
   </header>
 
   <div class="barre-outils">
@@ -595,8 +595,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V21";
+const VERSION = "V22";
 const HISTORIQUE_VERSIONS = [
+  { version:"V22", date:"24/08/2026", notes:"Correction d'un vrai bug, identifié par un test répété d'une vingtaine de sauvegardes : GitHub ne crée aucun commit quand le contenu envoyé est identique à celui déjà en place (comportement propre à son API), mais répondait quand même avec succès — l'app affichait donc « sauvegarde enregistrée » alors qu'aucun commit n'avait réellement été créé. Le contenu est désormais comparé à ce qui existe déjà sur GitHub avant d'écrire quoi que ce soit ; si rien n'a changé, un message explicite le dit clairement (« Rien de nouveau à sauvegarder sur GitHub ») au lieu d'un faux succès, aussi bien pour le bouton Sauvegarde que pour Enregistrer sur GitHub et la fermeture de l'arborescence. Vérifié : contenu inchangé → aucun commit + message honnête ; contenu réellement modifié → commit normal." },
   { version:"V21", date:"24/08/2026", notes:"Toutes les requêtes GitHub réessaient désormais automatiquement une fois (après un court délai) en cas de coupure réseau ponctuelle avant d'afficher une erreur — ce genre de « Load failed » isolé (souvent une simple perte de signal passagère en mobile) passe maintenant inaperçu au lieu d'interrompre l'action." },
   { version:"V20", date:"24/08/2026", notes:"Simplification du mécanisme de sauvegarde sur GitHub : abandon de la création d'un fichier séparé par sauvegarde, remplacé par un simple nouveau commit sur le fichier existant de la généalogie, avec pour message « Sauvegarde faite le JJ/MM/AAAA à HH:MM:SS ». La liste du panneau Sauvegardes vient maintenant de l'historique des commits de ce fichier (filtré sur ce message), et restaurer récupère le contenu du fichier tel qu'il était à ce commit précis plutôt que dans un fichier à part. Le téléchargement local (fichier horodaté séparé) est inchangé." },
   { version:"V19", date:"23/08/2026", notes:"Panneau Sauvegardes rendu beaucoup plus clair, à la suite d'un retour montrant qu'il n'était pas compréhensible (une erreur GitHub brute façon « Load failed » s'affichait dès l'ouverture, mélangée avec la fenêtre native de téléchargement, sans explication). Désormais : une phrase d'intro explique ce qu'est une sauvegarde ; deux sections nettement séparées « 📱 Sur cet appareil » (avec une note prévenant qu'une fenêtre de téléchargement va s'ouvrir) et « ☁️ Sur GitHub » ; les messages d'état sont en français clair avec une action à faire (« Configurer GitHub » si aucun jeton, « 🔄 Réessayer » en cas d'échec réseau, avec le détail technique relégué en petit texte discret plutôt qu'affiché comme message principal)." },
@@ -1220,8 +1221,13 @@ async function faireSauvegarde(){
   const conf = chargerConfigGithub();
   if(conf.jeton){
     try{
-      await enregistrerSurGithub(messageCommitSauvegarde());
-      afficherToast('✓ Sauvegarde téléchargée et enregistrée sur GitHub');
+      const resultat = await enregistrerSurGithub(messageCommitSauvegarde());
+      if(resultat && resultat.modifie===false){
+        afficherMessage('Rien de nouveau à sauvegarder sur GitHub',
+          `Le contenu est identique à ce qui est déjà enregistré là-bas — GitHub ne crée pas de commit quand rien ne change. Ta copie locale, elle, a bien été téléchargée. Modifie quelque chose dans la généalogie puis réessaie si tu veux un nouveau point de sauvegarde sur GitHub.`);
+      }else{
+        afficherToast('✓ Sauvegarde téléchargée et enregistrée sur GitHub');
+      }
     }catch(err){
       afficherToast('✓ Sauvegarde téléchargée — l\'envoi sur GitHub a échoué, réessaie plus tard');
     }
@@ -1659,7 +1665,18 @@ async function enregistrerSurGithub(messagePersonnalise){
   const contenuB64 = b64EncodeUnicode(JSON.stringify(nettoyerPourExport(donnees), null, 2));
   let sha;
   const repExistant = await apiGithub(`/repos/${c.proprietaire}/${c.depot}/contents/${encodeURIComponent(fichier)}`);
-  if(repExistant.ok){ sha = (await repExistant.json()).sha; }
+  if(repExistant.ok){
+    const donneesExistantes = await repExistant.json();
+    sha = donneesExistantes.sha;
+    /* GitHub n'écrit aucun commit réel si le contenu envoyé est identique à celui déjà en place —
+       il répond quand même avec succès, ce qui donnerait un faux message de sauvegarde effectuée si
+       on ne vérifie pas nous-même en amont. On compare donc le contenu existant (les retours à la
+       ligne insérés par l'API dans le base64 ne comptent pas) à ce qu'on s'apprête à envoyer. */
+    const contenuExistantB64 = (donneesExistantes.content||'').replace(/\n/g,'');
+    if(contenuExistantB64===contenuB64){
+      return {modifie:false};
+    }
+  }
 
   const corps = { message: messagePersonnalise || ('Mise à jour de la généalogie ('+new Date().toLocaleString('fr-FR')+')'), content:contenuB64 };
   if(sha) corps.sha = sha;
@@ -1672,6 +1689,7 @@ async function enregistrerSurGithub(messagePersonnalise){
     throw new Error('échec de l\'écriture ('+repEcriture.status+') '+detail);
   }
   sauvegarderCacheGenealogieActive();
+  return {modifie:true};
 }
 
 const overlayGithub = document.getElementById('overlay-github');
@@ -1714,8 +1732,10 @@ document.getElementById('btn-gh-sauver').addEventListener('click', async ()=>{
   if(!idGenealogieActive()){ document.getElementById('gh-statut').textContent = 'Choisis d\'abord une généalogie active (📚 Généalogies).'; return; }
   document.getElementById('gh-statut').textContent = 'Envoi…';
   try{
-    await enregistrerSurGithub();
-    document.getElementById('gh-statut').textContent = 'Enregistré sur GitHub ('+fichierGenealogieActive()+').';
+    const resultat = await enregistrerSurGithub();
+    document.getElementById('gh-statut').textContent = (resultat && resultat.modifie===false)
+      ? 'Rien de nouveau à enregistrer — le contenu est déjà identique sur GitHub ('+fichierGenealogieActive()+').'
+      : 'Enregistré sur GitHub ('+fichierGenealogieActive()+').';
   }catch(err){ document.getElementById('gh-statut').textContent = 'Erreur : '+err.message; }
 });
 
@@ -2162,8 +2182,13 @@ async function fermerArborescenceEtEnregistrer(){
     const conf = chargerConfigGithub();
     if(conf.jeton){
       try{
-        await enregistrerSurGithub();
-        afficherMessage('Enregistré', `Les modifications ont été enregistrées sur GitHub (${conf.proprietaire}/${conf.depot}/${fichierGenealogieActive()}).`);
+        const resultat = await enregistrerSurGithub();
+        if(resultat && resultat.modifie===false){
+          afficherMessage('Rien de nouveau à enregistrer sur GitHub',
+            `Tes modifications restent bien dans l'application, mais le contenu envoyé était identique à ce qui est déjà sur GitHub (${conf.proprietaire}/${conf.depot}/${fichierGenealogieActive()}) — aucun commit n'était nécessaire.`);
+        }else{
+          afficherMessage('Enregistré', `Les modifications ont été enregistrées sur GitHub (${conf.proprietaire}/${conf.depot}/${fichierGenealogieActive()}).`);
+        }
       }catch(err){
         afficherMessage('Échec de l\'enregistrement GitHub',
           `Les modifications restent dans l'application mais n'ont pas pu être envoyées à GitHub : ${err.message}. Utilise « Exporter JSON » pour ne pas les perdre.`);
