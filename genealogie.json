@@ -858,8 +858,15 @@
                               }
                             ],
                             "deces": ""
+                          },
+                          {
+                            "nom": "Nouvelle personne test",
+                            "naissance": "",
+                            "enfants": [],
+                            "deces": ""
                           }
-                        ]
+                        ],
+                        "deces": ""
                       },
                       {
                         "id": "B.6.2",
