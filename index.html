@@ -281,7 +281,7 @@
       <h1 id="titre-app">Éventail généalogique</h1>
       <div class="sous-titre" id="sous-titre-app">Chargement…</div>
     </div>
-    <button class="badge-version" id="btn-version" title="Historique des versions">V22</button>
+    <button class="badge-version" id="btn-version" title="Historique des versions">V23</button>
   </header>
 
   <div class="barre-outils">
@@ -595,8 +595,9 @@ if(window.visualViewport){
 }
 
 /* ===================== Version ===================== */
-const VERSION = "V22";
+const VERSION = "V23";
 const HISTORIQUE_VERSIONS = [
+  { version:"V23", date:"25/08/2026", notes:"Suite à un retour montrant une confusion réelle : le cas « rien de nouveau à sauvegarder sur GitHub » (V22) s'affichait dans une fenêtre à part, qu'on pouvait fermer sans vraiment comprendre pourquoi la liste ne montrait toujours que l'ancienne sauvegarde. Ce retour s'affiche désormais directement dans le panneau Sauvegardes, juste au-dessus de la liste existante — plus clair et impossible à manquer par inadvertance. La liste ne se recharge plus inutilement quand rien n'a changé." },
   { version:"V22", date:"24/08/2026", notes:"Correction d'un vrai bug, identifié par un test répété d'une vingtaine de sauvegardes : GitHub ne crée aucun commit quand le contenu envoyé est identique à celui déjà en place (comportement propre à son API), mais répondait quand même avec succès — l'app affichait donc « sauvegarde enregistrée » alors qu'aucun commit n'avait réellement été créé. Le contenu est désormais comparé à ce qui existe déjà sur GitHub avant d'écrire quoi que ce soit ; si rien n'a changé, un message explicite le dit clairement (« Rien de nouveau à sauvegarder sur GitHub ») au lieu d'un faux succès, aussi bien pour le bouton Sauvegarde que pour Enregistrer sur GitHub et la fermeture de l'arborescence. Vérifié : contenu inchangé → aucun commit + message honnête ; contenu réellement modifié → commit normal." },
   { version:"V21", date:"24/08/2026", notes:"Toutes les requêtes GitHub réessaient désormais automatiquement une fois (après un court délai) en cas de coupure réseau ponctuelle avant d'afficher une erreur — ce genre de « Load failed » isolé (souvent une simple perte de signal passagère en mobile) passe maintenant inaperçu au lieu d'interrompre l'action." },
   { version:"V20", date:"24/08/2026", notes:"Simplification du mécanisme de sauvegarde sur GitHub : abandon de la création d'un fichier séparé par sauvegarde, remplacé par un simple nouveau commit sur le fichier existant de la généalogie, avec pour message « Sauvegarde faite le JJ/MM/AAAA à HH:MM:SS ». La liste du panneau Sauvegardes vient maintenant de l'historique des commits de ce fichier (filtré sur ce message), et restaurer récupère le contenu du fichier tel qu'il était à ce commit précis plutôt que dans un fichier à part. Le téléchargement local (fichier horodaté séparé) est inchangé." },
@@ -1219,20 +1220,12 @@ async function faireSauvegarde(){
   /* sur GitHub : pas de fichier séparé — un nouveau commit sur le fichier de la généalogie, avec un
      message horodaté qui permet de le retrouver dans l'historique */
   const conf = chargerConfigGithub();
-  if(conf.jeton){
-    try{
-      const resultat = await enregistrerSurGithub(messageCommitSauvegarde());
-      if(resultat && resultat.modifie===false){
-        afficherMessage('Rien de nouveau à sauvegarder sur GitHub',
-          `Le contenu est identique à ce qui est déjà enregistré là-bas — GitHub ne crée pas de commit quand rien ne change. Ta copie locale, elle, a bien été téléchargée. Modifie quelque chose dans la généalogie puis réessaie si tu veux un nouveau point de sauvegarde sur GitHub.`);
-      }else{
-        afficherToast('✓ Sauvegarde téléchargée et enregistrée sur GitHub');
-      }
-    }catch(err){
-      afficherToast('✓ Sauvegarde téléchargée — l\'envoi sur GitHub a échoué, réessaie plus tard');
-    }
-  }else{
-    afficherToast('✓ Sauvegarde téléchargée');
+  if(!conf.jeton) return {github:'aucun-jeton'};
+  try{
+    const resultat = await enregistrerSurGithub(messageCommitSauvegarde());
+    return {github: (resultat && resultat.modifie===false) ? 'inchange' : 'ok'};
+  }catch(err){
+    return {github:'erreur', erreur:err.message};
   }
 }
 
@@ -1336,8 +1329,20 @@ document.getElementById('btn-sauvegarde').addEventListener('click', ouvrirSauveg
 document.getElementById('btn-sauvegarde-arbre').addEventListener('click', ouvrirSauvegardes);
 document.getElementById('fermer-sauvegardes').addEventListener('click', ()=>overlaySauvegardes.classList.remove('visible'));
 document.getElementById('btn-nouvelle-sauvegarde').addEventListener('click', async ()=>{
-  await faireSauvegarde();
-  await rafraichirListeSauvegardes();
+  const resultat = await faireSauvegarde();
+  if(resultat.github==='ok'){
+    afficherToast('✓ Sauvegarde téléchargée et enregistrée sur GitHub');
+    await rafraichirListeSauvegardes();
+  }else if(resultat.github==='inchange'){
+    afficherStatutSauvegarde('info',
+      `Ta généalogie n'a pas changé depuis ta dernière sauvegarde GitHub (visible ci-dessous) — rien de nouveau à y ajouter. Ta copie locale, elle, a bien été téléchargée à l'instant.`);
+  }else if(resultat.github==='erreur'){
+    afficherStatutSauvegarde('souci',
+      `Ta copie locale a bien été téléchargée, mais l'envoi sur GitHub a échoué.<br><button class="btn" id="btn-reessayer-nouvelle-sauvegarde">🔄 Réessayer l'envoi sur GitHub</button><div style="margin-top:.4rem;font-size:.68rem;opacity:.75;">Détail technique : ${resultat.erreur}</div>`);
+    document.getElementById('btn-reessayer-nouvelle-sauvegarde').addEventListener('click', ()=>document.getElementById('btn-nouvelle-sauvegarde').click());
+  }else{
+    afficherToast('✓ Sauvegarde téléchargée');
+  }
 });
 
 /* édition JSON */
